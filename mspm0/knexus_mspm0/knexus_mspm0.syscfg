@@ -1,0 +1,157 @@
+/**
+ * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)"
+ * @versions {"tool":"1.26.3+4558"}
+ */
+
+const GPIO   = scripting.addModule("/ti/driverlib/GPIO", {}, false);
+const UART   = scripting.addModule("/ti/driverlib/UART", {}, false);
+const QEI    = scripting.addModule("/ti/driverlib/QEI", {}, false);
+const PWM    = scripting.addModule("/ti/driverlib/PWM", {}, false);
+const ADC12  = scripting.addModule("/ti/driverlib/ADC12", {}, false);
+const SPI    = scripting.addModule("/ti/driverlib/SPI", {}, false);
+const MCAN   = scripting.addModule("/ti/driverlib/MCAN", {}, false);
+const SYSCTL = scripting.addModule("/ti/driverlib/SYSCTL");
+const Board  = scripting.addModule("/ti/driverlib/Board", {}, false);
+
+/* ═══════════════ GPIO ═══════════════ */
+const LED0 = GPIO.addInstance();
+LED0.$name = "LED0"; LED0.port = "PORTB";
+LED0.associatedPins[0].$name = "LED0_PIN"; LED0.associatedPins[0].assignedPin = "16";
+LED0.associatedPins[0].pin.$suggestSolution = "PB16";
+const LED1I = GPIO.addInstance();
+LED1I.$name = "LED1"; LED1I.port = "PORTB";
+LED1I.associatedPins[0].$name = "LED1_PIN"; LED1I.associatedPins[0].assignedPin = "19";
+LED1I.associatedPins[0].pin.$suggestSolution = "PB19";
+const LED2I = GPIO.addInstance();
+LED2I.$name = "LED2"; LED2I.port = "PORTB";
+LED2I.associatedPins[0].$name = "LED2_PIN"; LED2I.associatedPins[0].assignedPin = "21";
+LED2I.associatedPins[0].pin.$suggestSolution = "PB21";
+
+const KEY0I = GPIO.addInstance();
+KEY0I.$name = "KEY0"; KEY0I.port = "PORTB";
+KEY0I.associatedPins[0].$name = "KEY0_PIN"; KEY0I.associatedPins[0].assignedPin = "23";
+KEY0I.associatedPins[0].pin.$suggestSolution = "PB23";
+const KEY1I = GPIO.addInstance();
+KEY1I.$name = "KEY1"; KEY1I.port = "PORTB";
+KEY1I.associatedPins[0].$name = "KEY1_PIN"; KEY1I.associatedPins[0].assignedPin = "27";
+KEY1I.associatedPins[0].pin.$suggestSolution = "PB27";
+
+const BEEPI = GPIO.addInstance();
+BEEPI.$name = "BEEP"; BEEPI.port = "PORTB";
+BEEPI.associatedPins[0].$name = "BEEP0_PIN"; BEEPI.associatedPins[0].assignedPin = "6";
+BEEPI.associatedPins[0].pin.$suggestSolution = "PB6";
+
+const ENCA = GPIO.addInstance();
+ENCA.$name = "ENC_RA"; ENCA.port = "PORTA";
+ENCA.associatedPins[0].$name = "ENC_RA_PIN"; ENCA.associatedPins[0].assignedPin = "8";
+ENCA.associatedPins[0].pin.$suggestSolution = "PA8";
+const ENCB = GPIO.addInstance();
+ENCB.$name = "ENC_RB"; ENCB.port = "PORTA";
+ENCB.associatedPins[0].$name = "ENC_RB_PIN"; ENCB.associatedPins[0].assignedPin = "9";
+ENCB.associatedPins[0].pin.$suggestSolution = "PA9";
+
+const MPL = GPIO.addInstance();
+MPL.$name = "MOTOR_L_PH"; MPL.port = "PORTA";
+MPL.associatedPins[0].$name = "ML_PHASE"; MPL.associatedPins[0].assignedPin = "7";
+MPL.associatedPins[0].pin.$suggestSolution = "PA7";
+const MPR = GPIO.addInstance();
+MPR.$name = "MOTOR_R_PH"; MPR.port = "PORTA";
+MPR.associatedPins[0].$name = "MR_PHASE"; MPR.associatedPins[0].assignedPin = "2";
+MPR.associatedPins[0].pin.$suggestSolution = "PA2";
+
+const CS0 = GPIO.addInstance();
+CS0.$name = "BMI_CS0"; CS0.port = "PORTA";
+CS0.associatedPins[0].$name = "CS0_PIN"; CS0.associatedPins[0].assignedPin = "25";
+CS0.associatedPins[0].pin.$suggestSolution = "PA25";
+const CS1 = GPIO.addInstance();
+CS1.$name = "BMI_CS1"; CS1.port = "PORTA";
+CS1.associatedPins[0].$name = "CS1_PIN"; CS1.associatedPins[0].assignedPin = "24";
+CS1.associatedPins[0].pin.$suggestSolution = "PA24";
+
+const T0 = GPIO.addInstance();
+T0.$name = "TRK_AD0"; T0.port = "PORTB";
+T0.associatedPins[0].$name = "AD0_PIN"; T0.associatedPins[0].assignedPin = "4";
+T0.associatedPins[0].pin.$suggestSolution = "PB4";
+const T1 = GPIO.addInstance();
+T1.$name = "TRK_AD1"; T1.port = "PORTB";
+T1.associatedPins[0].$name = "AD1_PIN"; T1.associatedPins[0].assignedPin = "5";
+T1.associatedPins[0].pin.$suggestSolution = "PB5";
+const T2 = GPIO.addInstance();
+T2.$name = "TRK_AD2"; T2.port = "PORTB";
+T2.associatedPins[0].$name = "AD2_PIN"; T2.associatedPins[0].assignedPin = "7";
+T2.associatedPins[0].pin.$suggestSolution = "PB7";
+
+/* ═══════════════ PERIPHERALS ═══════════════ */
+const UART1 = UART.addInstance();
+UART1.$name = "UART_DEBUG"; UART1.targetBaudRate = 921600;
+UART1.peripheral.$assign = "UART3";
+UART1.peripheral.txPin.$assign = "PB2";
+UART1.peripheral.rxPin.$assign = "PB3";
+
+const QEI1 = QEI.addInstance();
+QEI1.$name = "QEI_LEFT";
+QEI1.peripheral.$assign = "TIMG8";
+QEI1.peripheral.ccp0Pin.$assign = "PA21";
+QEI1.peripheral.ccp1Pin.$assign = "PA22";
+
+const PWM_L = PWM.addInstance();
+PWM_L.$name = "PWM_L";
+PWM_L.clockPrescale = 1; PWM_L.timerCount = 4000;
+PWM_L.peripheral.$assign = "TIMA0";
+PWM_L.peripheral.ccp0Pin.$assign = "PA0";
+PWM_L.PWM_CHANNEL_0.$name = "PWM_L_EN"; PWM_L.PWM_CHANNEL_0.dutyCycle = 0;
+
+const PWM_R = PWM.addInstance();
+PWM_R.$name = "PWM_R";
+PWM_R.clockPrescale = 1; PWM_R.timerCount = 4000;
+PWM_R.peripheral.$assign = "TIMA1";
+PWM_R.peripheral.ccp0Pin.$assign = "PA15";
+PWM_R.PWM_CHANNEL_0.$name = "PWM_R_EN"; PWM_R.PWM_CHANNEL_0.dutyCycle = 0;
+
+const ADC1 = ADC12.addInstance();
+ADC1.$name = "ADC_MOTOR"; ADC1.repeatMode = false;
+ADC1.peripheral.$assign = "ADC0";
+ADC1.peripheral.adcPin0.$assign = "PA27";
+ADC1.sampleTime0 = "250ns";
+
+const BMI_SPI = SPI.addInstance();
+BMI_SPI.$name = "SPI_BMI088"; BMI_SPI.targetBitRate = 10000000;
+BMI_SPI.peripheral.$assign = "SPI0";
+BMI_SPI.peripheral.sclkPin.$assign = "PA11";
+BMI_SPI.peripheral.misoPin.$assign = "PA10";
+BMI_SPI.peripheral.mosiPin.$assign = "PA14";
+
+const CAN0 = MCAN.addInstance();
+CAN0.$name = "MCAN0";
+CAN0.loopbackMode = "internal";
+CAN0.peripheral.$assign = "CANFD0";
+CAN0.peripheral.rxPin.$assign = "PA13";
+CAN0.peripheral.txPin.$assign = "PA12";
+
+/* ═══════════════ CLOCK (manual for MCAN CANCLK) ═══════════════ */
+SYSCTL.clockTreeEn = true;
+
+const hfxt = system.clockTree["HFXT"];
+hfxt.inputFreq = 40;
+hfxt.enable = true;
+hfxt.HFXTStartup = 10;
+hfxt.HFCLKMonitor = true;
+const exhfMux = system.clockTree["EXHFMUX"];
+exhfMux.inputSelect = "EXHFMUX_XTAL";
+const syspllMux = system.clockTree["SYSPLLMUX"];
+syspllMux.inputSelect = "zSYSPLLMUX_HFCLK";
+const hsclkMux = system.clockTree["HSCLKMUX"];
+hsclkMux.inputSelect = "HSCLKMUX_SYSPLL0";
+const pllQdiv = system.clockTree["PLL_QDIV"];
+pllQdiv.multiplyValue = 4;
+const udiv = system.clockTree["UDIV"];
+udiv.divideValue = 2;
+const mfclkGate = system.clockTree["MFCLKGATE"];
+mfclkGate.enable = true;
+
+SYSCTL.CANCLKSource = "HFCLK";
+
+Board.peripheral.$suggestSolution = "DEBUGSS";
+Board.peripheral.swclkPin.$suggestSolution = "PA20";
+Board.peripheral.swdioPin.$suggestSolution = "PA19";

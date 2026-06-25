@@ -1,0 +1,54 @@
+# Build output
+build/
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.cfg
+
+# Claude Code
+.claude/
+
+# Compiled objects
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.list
+*.axf
+
+# Libraries
+*.a
+*.la
+*.lo
+*.lib
+
+# CMake generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Python (track_sample)
+track_sample/.venv/
+track_sample/__pycache__/
+track_sample/*.pyc
+track_sample/runs/
+track_sample/*.pt
+track_sample/*.onnx
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
+*.bak

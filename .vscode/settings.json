@@ -1,0 +1,10 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": false,
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "cmake.buildDirectory": "${workspaceFolder}/build/${presetName}",
+  "cmake.configurePreset": "stm32-debug",
+  "cmake.buildPreset": "stm32-debug",
+  "cortex-debug.openocdPath": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+  "cortex-debug.armToolchainPath": "D:/applications/armgcc/ARM_GCC/arm/bin"
+}

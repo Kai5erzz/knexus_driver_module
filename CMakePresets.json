@@ -1,0 +1,43 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "stm32-debug",
+      "displayName": "STM32 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/stm32-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KNEXUS_TARGET": "stm32",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "mspm0-debug",
+      "displayName": "MSPM0 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mspm0-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KNEXUS_TARGET": "mspm0",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "stm32-debug",
+      "configurePreset": "stm32-debug",
+      "targets": [
+        "all"
+      ]
+    },
+    {
+      "name": "mspm0-debug",
+      "configurePreset": "mspm0-debug",
+      "targets": [
+        "all"
+      ]
+    }
+  ]
+}

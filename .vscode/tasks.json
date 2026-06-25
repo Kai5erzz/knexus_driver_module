@@ -1,0 +1,145 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: Configure STM32",
+      "type": "shell",
+      "command": "C:/Users/85095/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+      "args": [
+        "--preset",
+        "stm32-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: Build STM32",
+      "type": "shell",
+      "command": "C:/Users/85095/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+      "args": [
+        "--build",
+        "--preset",
+        "stm32-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": [
+        "CMake: Configure STM32"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Flash Program",
+      "type": "shell",
+      "command": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "args": [
+        "-s",
+        "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts",
+        "-f",
+        "D:/User/Project/CLION+CUBEMX/cfj/rm_dap_wireless.cfg",
+        "-c",
+        "program D:/User/Project/knexus_driver_module/build/stm32-debug/stm32/knexus_st/knexus_st.elf verify reset exit"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "cmd.exe",
+          "args": [
+            "/c"
+          ]
+        }
+      },
+      "dependsOn": [
+        "CMake: Build STM32"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: Configure MSPM0",
+      "type": "shell",
+      "command": "C:/Users/85095/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+      "args": [
+        "--preset",
+        "mspm0-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: Build MSPM0",
+      "type": "shell",
+      "command": "C:/Users/85095/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+      "args": [
+        "--build",
+        "--preset",
+        "mspm0-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "dependsOn": [
+        "CMake: Configure MSPM0"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Flash Program (MSPM0)",
+      "type": "shell",
+      "command": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "args": [
+        "-s",
+        "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts",
+        "-f",
+        "D:/User/Project/knexus_driver_module/.vscode/daplink_wireless_mspm0.cfg",
+        "-c",
+        "init; reset halt; program D:/User/Project/knexus_driver_module/build/mspm0-debug/mspm0/knexus_mspm0/knexus_mspm0.elf; reset run; shutdown"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "cmd.exe",
+          "args": [
+            "/c"
+          ]
+        }
+      },
+      "dependsOn": [
+        "CMake: Build MSPM0"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Mass Erase (MSPM0)",
+      "type": "shell",
+      "command": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "args": [
+        "-s",
+        "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts",
+        "-f",
+        "D:/User/Project/knexus_driver_module/.vscode/daplink_wireless_mspm0.cfg",
+        "-c",
+        "init; mspm0_mass_erase; shutdown"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "cmd.exe",
+          "args": [
+            "/c"
+          ]
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}

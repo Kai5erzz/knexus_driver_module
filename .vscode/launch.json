@@ -1,0 +1,46 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32 Debug OpenOCD",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/stm32-debug/stm32/knexus_st/knexus_st.elf",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "device": "STM32H743IITx",
+      "interface": "swd",
+      "openOCDPath": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "serverArgs": [
+        "-s",
+        "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts"
+      ],
+      "configFiles": [
+        "D:/User/Project/CLION+CUBEMX/cfj/rm_dap_wireless.cfg"
+      ],
+      "gdbPath": "D:/applications/armgcc/ARM_GCC/arm/bin/arm-none-eabi-gdb.exe",
+      "preLaunchTask": "CMake: Build STM32"
+    },
+    {
+      "name": "MSPM0 Debug OpenOCD",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/mspm0-debug/mspm0/knexus_mspm0/knexus_mspm0.elf",
+      "request": "launch",
+      "type": "cortex-debug",
+      "runToEntryPoint": "main",
+      "servertype": "openocd",
+      "device": "MSPM0G3507",
+      "openOCDPath": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "serverArgs": [
+        "-s",
+        "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts"
+      ],
+      "configFiles": [
+        "${workspaceFolder}/.vscode/daplink_wireless_mspm0.cfg"
+      ],
+      "gdbPath": "D:/applications/armgcc/ARM_GCC/arm/bin/arm-none-eabi-gdb.exe",
+      "preLaunchTask": "CMake: Build MSPM0"
+    }
+  ]
+}
