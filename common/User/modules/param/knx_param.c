@@ -1,6 +1,7 @@
 #include "knx_param.h"
 #include <stddef.h>
 #include <string.h>
+#include <math.h>
 
 #define KNX_PARAM_MAX_TABLES  12U
 
@@ -17,6 +18,9 @@ static knx_param_value_t clamp_value(const knx_param_entry_t *entry,
 {
     switch (entry->type) {
     case KNX_PARAM_TYPE_F32:
+        if (isnan(value.f32) || isinf(value.f32)) {
+            value.f32 = entry->default_value.f32;
+        }
         if (value.f32 < entry->min_value.f32) {
             value.f32 = entry->min_value.f32;
         }
@@ -96,6 +100,12 @@ static knx_status_t write_value(const knx_param_entry_t *entry,
     }
     if ((entry->flags & KNX_PARAM_FLAG_READONLY) != 0U) {
         return KNX_NOT_READY;
+    }
+
+    if (entry->type == KNX_PARAM_TYPE_F32) {
+        if (isnan(value.f32) || isinf(value.f32)) {
+            return KNX_INVALID_ARG;
+        }
     }
 
     value = clamp_value(entry, value);
@@ -271,6 +281,9 @@ knx_status_t knx_param_get_f32(uint16_t id, float *value)
 
 knx_status_t knx_param_set_f32(uint16_t id, float value)
 {
+    if (isnan(value) || isinf(value)) {
+        return KNX_INVALID_ARG;
+    }
     knx_param_value_t raw = { .f32 = value };
     const knx_param_entry_t *entry = knx_param_find_by_id(id);
     if (entry == NULL || entry->type != KNX_PARAM_TYPE_F32) {

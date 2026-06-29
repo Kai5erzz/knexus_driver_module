@@ -31,8 +31,10 @@
 #ifndef user_malloc
 #ifdef _CMSIS_OS_H
 #define user_malloc pvPortMalloc
+#define user_free  vPortFree
 #else
 #define user_malloc malloc
+#define user_free  free
 #endif
 #endif
 
@@ -110,6 +112,7 @@ typedef struct kf_t
 extern uint16_t sizeof_float, sizeof_double;
 
 void Kalman_Filter_Init(KalmanFilter_t *kf, uint8_t xhatSize, uint8_t uSize, uint8_t zSize);
+void Kalman_Filter_Deinit(KalmanFilter_t *kf);
 void Kalman_Filter_Measure(KalmanFilter_t *kf);
 void Kalman_Filter_xhatMinusUpdate(KalmanFilter_t *kf);
 void Kalman_Filter_PminusUpdate(KalmanFilter_t *kf);

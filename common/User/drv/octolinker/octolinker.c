@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static uint8_t Octolinker_CalcCRC8(const uint8_t *data, uint16_t len)
+static uint8_t Octolinker_CalcChecksum8(const uint8_t *data, uint16_t len)
 {
     uint8_t crc = 0U;
     for (uint16_t i = 0U; i < len; i++) {
@@ -72,7 +72,7 @@ knx_status_t Octolinker_SendFrame(Octolinker_Instance_t *ol,
     memcpy(&ol->tx_buf[pos], payload, payload_len);
     pos = (uint16_t)(pos + payload_len);
 
-    ol->tx_buf[pos++] = Octolinker_CalcCRC8(&ol->tx_buf[2], (uint16_t)(pos - 2U));
+    ol->tx_buf[pos++] = Octolinker_CalcChecksum8(&ol->tx_buf[2], (uint16_t)(pos - 2U));
     ol->tx_len = pos;
 
     return Octolinker_SendBytes(ol, ol->tx_buf, ol->tx_len);
@@ -227,7 +227,7 @@ knx_status_t Octolinker_SendLiteFrame(Octolinker_Instance_t *ol,
     ol->tx_buf[pos++] = payload_len;
     memcpy(&ol->tx_buf[pos], payload, payload_len);
     pos = (uint16_t)(pos + payload_len);
-    ol->tx_buf[pos++] = Octolinker_CalcCRC8(&ol->tx_buf[1], (uint16_t)(pos - 1U));
+    ol->tx_buf[pos++] = Octolinker_CalcChecksum8(&ol->tx_buf[1], (uint16_t)(pos - 1U));
     ol->tx_len = pos;
 
     return Octolinker_SendBytes(ol, ol->tx_buf, ol->tx_len);

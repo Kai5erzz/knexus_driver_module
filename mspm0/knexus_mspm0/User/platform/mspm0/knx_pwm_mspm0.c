@@ -57,14 +57,21 @@ knx_status_t knx_pwm_set_duty(knx_pwm_channel_t *ch, float duty)
     if (duty < 0.0f) duty = 0.0f;
     if (duty > 1.0f) duty = 1.0f;
 
-    /* Get period – use cached arr, or fall back to reading HW */
+    /* Get period – use cached arr, or fall back to reading HW load register */
     uint32_t period = ch->arr;
     if (period == 0) {
-        period = DL_TimerA_getCaptureCompareValue(
-                     (GPTIMER_Regs *)ch->timer, cc_index(ch->channel));
+        period = DL_TimerA_getLoadValue((GPTIMER_Regs *)ch->timer);
     }
 
     uint32_t compare = (uint32_t)(duty * (float)period);
+
+    /* 100% duty corner-case fix: when duty==1.0f the CC register equals the
+     * period, which in Timer-A PWM mode yields only one tick of high output.
+     * Writing (period + 1) — which wraps to 0 in the 16-bit CC field — forces
+     * a continuously-high output. Borrowed from seekfree zf_driver_pwm.c. */
+    if (compare >= period) {
+        compare = (uint32_t)(period + 1U);
+    }
 
     DL_TimerA_setCaptureCompareValue(
         (GPTIMER_Regs *)ch->timer, compare, cc_index(ch->channel));
@@ -91,9 +98,8 @@ knx_status_t knx_pwm_get_period(const knx_pwm_channel_t *ch, uint32_t *period)
     if (ch->arr > 0) {
         *period = ch->arr;
     } else {
-        /* Read period from hardware via capture-compare register */
-        *period = DL_TimerA_getCaptureCompareValue(
-                      (GPTIMER_Regs *)ch->timer, cc_index(ch->channel));
+        /* Read period from hardware LOAD register (auto-reload / counter max) */
+        *period = DL_TimerA_getLoadValue((GPTIMER_Regs *)ch->timer);
     }
 
     return KNX_OK;

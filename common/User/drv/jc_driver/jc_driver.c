@@ -1,6 +1,8 @@
 #include "jc_driver.h"
 #include "knx_health.h"
 #include "knx_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <stdio.h>
 #include <stddef.h>
 
@@ -10,7 +12,7 @@ static knx_can_t *s_can = NULL;
 static volatile uint8_t s_rx_flag = 0U;
 static volatile uint8_t s_last_motor_id = 0U;
 static volatile uint16_t s_last_reg = 0U;
-static JC_Reply s_last_reply;
+static volatile JC_Reply s_last_reply;
 static JC_Stats s_stats;
 static uint32_t s_timeout_ms = JC_DEFAULT_TIMEOUT_MS;
 
@@ -118,6 +120,7 @@ void JC_RxHandler(uint32_t can_id, const uint8_t *rx_data, uint8_t len)
 
     s_stats.last_rx_id = can_id;
     s_stats.rx_count++;
+    __asm volatile ("dsb" ::: "memory");  /* Ensure s_last_reply is visible before setting flag */
     s_rx_flag = 1U;
     (void)knx_health_report(KNX_HEALTH_SOURCE_JC,
                             KNX_HEALTH_STATE_OK,
@@ -198,11 +201,13 @@ knx_status_t JC_Receive(uint8_t motor_id, JC_Reply *reply, uint32_t timeout_ms)
 
     uint32_t start = knx_millis();
     while (s_rx_flag == 0U && (knx_millis() - start) < timeout_ms) {
-        knx_delay_ms(1U);
+        taskYIELD();
     }
 
     if (s_rx_flag != 0U) {
+        taskENTER_CRITICAL();
         *reply = s_last_reply;
+        taskEXIT_CRITICAL();
         s_stats.last_status = KNX_OK;
         return KNX_OK;
     }
@@ -421,7 +426,9 @@ knx_status_t JC_Reboot(uint8_t motor_id)
 void JC_GetLastReply(JC_Reply *reply)
 {
     if (reply != NULL) {
+        taskENTER_CRITICAL();
         *reply = s_last_reply;
+        taskEXIT_CRITICAL();
     }
 }
 

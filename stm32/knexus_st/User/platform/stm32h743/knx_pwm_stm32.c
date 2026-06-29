@@ -40,7 +40,14 @@ knx_status_t knx_pwm_set_duty(knx_pwm_channel_t *ch, float duty)
         arr = htim->Instance->ARR;
     }
 
+    /* STM32 ARR=arr counter rolls 0..arr (arr+1 counts total), PWM high when
+     * counter < CCR. With duty=1.0 we want compare=arr+1 so CCR > counter
+     * always → continuously high.  No explicit +1 corner-case fix needed
+     * (see knx_pwm_mspm0.c for Timer-A variant). */
     uint32_t compare = (uint32_t)(duty * (float)(arr + 1));
+    if (compare > (arr + 1U)) {  /* belt-and-braces guard for duty>1.0 */
+        compare = arr + 1U;
+    }
     __HAL_TIM_SET_COMPARE(htim, ch->channel, compare);
 
     return KNX_OK;

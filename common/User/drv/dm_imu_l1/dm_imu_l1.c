@@ -1,6 +1,8 @@
 #include "dm_imu_l1.h"
 #include "knx_health.h"
 #include "knx_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -334,6 +336,9 @@ void DM_IMU_L1_UpdateData(uint32_t std_id, const uint8_t *data, uint8_t len)
         return;
     }
 
+    /* Protect multi-field write from ISR↔task race — called from CAN ISR */
+    uint32_t saved = taskENTER_CRITICAL_FROM_ISR();
+
     switch (data[0]) {
     case DM_IMU_L1_DATA_ACCEL:
         dm_imu_l1_parse_accel(data);
@@ -349,6 +354,7 @@ void DM_IMU_L1_UpdateData(uint32_t std_id, const uint8_t *data, uint8_t len)
         break;
     default:
         dm_imu_l1_data.error_count++;
+        taskEXIT_CRITICAL_FROM_ISR(saved);
         (void)knx_health_report(KNX_HEALTH_SOURCE_DM_IMU_L1,
                                 KNX_HEALTH_STATE_WARN,
                                 KNX_INVALID_ARG,
@@ -363,11 +369,24 @@ void DM_IMU_L1_UpdateData(uint32_t std_id, const uint8_t *data, uint8_t len)
     dm_imu_l1_data.frame_count++;
     dm_imu_l1_data.rx_count++;
     dm_imu_l1_data.last_status = KNX_OK;
+
+    taskEXIT_CRITICAL_FROM_ISR(saved);
+
     (void)knx_health_report(KNX_HEALTH_SOURCE_DM_IMU_L1,
                             KNX_HEALTH_STATE_OK,
                             KNX_OK,
                             dm_imu_l1_data.data_flags,
                             dm_imu_l1_data.error_count);
+}
+
+void DM_IMU_L1_Snapshot(dm_imu_l1_data_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    taskENTER_CRITICAL();
+    *out = dm_imu_l1_data;
+    taskEXIT_CRITICAL();
 }
 
 uint8_t DM_IMU_L1_IsDataReady(void)

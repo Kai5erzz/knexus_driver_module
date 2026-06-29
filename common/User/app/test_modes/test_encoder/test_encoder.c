@@ -34,9 +34,9 @@ void test_encoder_init(void *octo)
 {
     s_octo = (Octolinker_Instance_t *)octo;
 
-    Encoder_AttachPorts(knx_board_get_encoder_left(),
-                        knx_board_get_encoder_right());
-    Encoder_Init();
+    (void)Encoder_AttachPorts(knx_board_get_encoder_left(),
+                              knx_board_get_encoder_right());
+    (void)Encoder_Init();
 
     s_l_position  = 0;
     s_r_position  = 0;

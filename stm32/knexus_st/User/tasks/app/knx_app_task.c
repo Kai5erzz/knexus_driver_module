@@ -15,9 +15,13 @@ static void knx_app_task_entry(void *argument)
 
     knx_app_init();
 
+    static uint32_t next_wake;
+    if (next_wake == 0) next_wake = osKernelGetTickCount();
+
     for (;;) {
         knx_app_loop();
-        osDelay(KNX_APP_TASK_PERIOD_MS);
+        next_wake += KNX_APP_TASK_PERIOD_MS;
+        osDelayUntil(next_wake);
     }
 }
 

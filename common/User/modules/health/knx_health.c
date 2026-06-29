@@ -1,6 +1,9 @@
 #include "knx_health.h"
 #include "knx_blackbox.h"
 #include "knx_time.h"
+#include "knx_port.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <string.h>
 
 static knx_health_record_t s_records[KNX_HEALTH_SOURCE_COUNT];
@@ -24,6 +27,27 @@ static uint8_t health_rank(knx_health_state_t state)
     }
 }
 
+static uint32_t health_enter_critical(void)
+{
+    if (knx_port_is_in_isr()) {
+        return taskENTER_CRITICAL_FROM_ISR();
+    }
+
+    taskENTER_CRITICAL();
+    return 0U;
+}
+
+static void health_exit_critical(uint32_t saved)
+{
+    if (knx_port_is_in_isr()) {
+        taskEXIT_CRITICAL_FROM_ISR(saved);
+        return;
+    }
+
+    (void)saved;
+    taskEXIT_CRITICAL();
+}
+
 void knx_health_init(void)
 {
     memset(s_records, 0, sizeof(s_records));
@@ -44,9 +68,13 @@ knx_status_t knx_health_report(knx_health_source_t source,
     }
 
     knx_health_record_t *record = &s_records[(uint32_t)source];
-    uint8_t changed = (record->state != state ||
-                       record->status != status ||
-                       record->flags != flags) ? 1U : 0U;
+    uint8_t changed;
+
+    /* Protect record writes from both task and ISR callers. */
+    uint32_t saved = health_enter_critical();
+    changed = (record->state != state ||
+               record->status != status ||
+               record->flags != flags) ? 1U : 0U;
 
     record->state = state;
     record->status = status;
@@ -54,6 +82,7 @@ knx_status_t knx_health_report(knx_health_source_t source,
     record->error_count = error_count;
     record->update_count++;
     record->last_update_ms = knx_millis();
+    health_exit_critical(saved);
 
     if (changed != 0U) {
         knx_blackbox_log(KNX_BLACKBOX_CODE_HEALTH_CHANGE,
@@ -86,7 +115,10 @@ knx_status_t knx_health_get(knx_health_source_t source,
         return KNX_INVALID_ARG;
     }
 
+    /* Atomic structure copy under critical section */
+    uint32_t saved = health_enter_critical();
     *record = s_records[(uint32_t)source];
+    health_exit_critical(saved);
     return KNX_OK;
 }
 
@@ -97,10 +129,18 @@ uint32_t knx_health_age_ms(knx_health_source_t source)
     }
 
     const knx_health_record_t *record = &s_records[(uint32_t)source];
-    if (record->update_count == 0U) {
+    uint32_t update_count;
+    uint32_t last_update_ms;
+
+    uint32_t saved = health_enter_critical();
+    update_count = record->update_count;
+    last_update_ms = record->last_update_ms;
+    health_exit_critical(saved);
+
+    if (update_count == 0U) {
         return 0xFFFFFFFFU;
     }
-    return knx_millis() - record->last_update_ms;
+    return knx_millis() - last_update_ms;
 }
 
 knx_health_state_t knx_health_overall_state(void)
@@ -108,6 +148,7 @@ knx_health_state_t knx_health_overall_state(void)
     knx_health_state_t overall = KNX_HEALTH_STATE_OK;
     uint8_t overall_rank = 0U;
 
+    uint32_t saved = health_enter_critical();
     for (uint8_t i = 0U; i < (uint8_t)KNX_HEALTH_SOURCE_COUNT; i++) {
         uint8_t rank = health_rank(s_records[i].state);
         if (rank > overall_rank) {
@@ -115,6 +156,7 @@ knx_health_state_t knx_health_overall_state(void)
             overall = s_records[i].state;
         }
     }
+    health_exit_critical(saved);
     return overall;
 }
 

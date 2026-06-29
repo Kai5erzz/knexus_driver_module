@@ -15,6 +15,7 @@
  ******************************************************************************
  */
 #include "QuaternionEKF.h"
+#include <math.h>
 
 QEKF_INS_t QEKF_INS;
 
@@ -97,8 +98,8 @@ void IMU_QuaternionEKF_Init(float* init_quaternion,float process_noise1, float p
 void IMU_QuaternionEKF_Update(float gx, float gy, float gz, float ax, float ay, float az, float dt)
 {
     // 0.5(Ohm-Ohm^bias)*deltaT,用于更新工作点处的状态转移F矩阵
-    static float halfgxdt, halfgydt, halfgzdt;
-    static float accelInvNorm;
+    float halfgxdt, halfgydt, halfgzdt;
+    float accelInvNorm;
 
     /*   F, number with * represent vals to be set
      0      1*     2*     3*     4     5
@@ -108,13 +109,14 @@ void IMU_QuaternionEKF_Update(float gx, float gy, float gz, float ax, float ay, 
     24     25     26     27     28    29
     30     31     32     33     34    35
     */
-//    // 检查输入数据有效性
-//    if (!isfinite(gx) || !isfinite(gy) || !isfinite(gz) ||
-//        !isfinite(ax) || !isfinite(ay) || !isfinite(az) ||
-//        !isfinite(dt) || dt <= 0) {
-//        // 记录错误或使用上次的有效数据
-//        return;
-//    }
+    // 检查输入数据有效性,NaN/Inf输入会导致滤波器发散
+    if (!isfinite(gx) || !isfinite(gy) || !isfinite(gz) ||
+        !isfinite(ax) || !isfinite(ay) || !isfinite(az) ||
+        !isfinite(dt) || dt <= 0.0f) {
+        // 输入无效,跳过本次更新,保留上次有效状态
+        QEKF_INS.ErrorCount++;
+        return;
+    }
     QEKF_INS.dt = dt;
 
     QEKF_INS.Gyro[0] = gx - QEKF_INS.GyroBias[0];
@@ -231,8 +233,8 @@ void IMU_QuaternionEKF_Update(float gx, float gy, float gz, float ax, float ay, 
  */
 static void IMU_QuaternionEKF_F_Linearization_P_Fading(KalmanFilter_t *kf)
 {
-    static float q0, q1, q2, q3;
-    static float qInvNorm;
+    float q0, q1, q2, q3;
+    float qInvNorm;
 
     q0 = kf->xhatminus_data[0];
     q1 = kf->xhatminus_data[1];
@@ -288,7 +290,7 @@ static void IMU_QuaternionEKF_F_Linearization_P_Fading(KalmanFilter_t *kf)
  */
 static void IMU_QuaternionEKF_SetH(KalmanFilter_t *kf)
 {
-    static float doubleq0, doubleq1, doubleq2, doubleq3;
+    float doubleq0, doubleq1, doubleq2, doubleq3;
     /* H
      0     1     2     3     4     5
      6     7     8     9    10    11
@@ -328,7 +330,7 @@ static void IMU_QuaternionEKF_SetH(KalmanFilter_t *kf)
  */
 static void IMU_QuaternionEKF_xhatUpdate(KalmanFilter_t *kf)
 {
-    static float q0, q1, q2, q3;
+    float q0, q1, q2, q3;
 
     kf->MatStatus = Matrix_Transpose(&kf->H, &kf->HT); // z|x => x|z
     kf->temp_matrix.numRows = kf->H.numRows;
@@ -486,6 +488,7 @@ static void IMU_QuaternionEKF_Observe(KalmanFilter_t *kf)
  */
 static float invSqrt(float x)
 {
+    if (x <= 0.0f) return 0.0f;
     float halfx = 0.5f * x;
     float y = x;
     long i = *(long *)&y;

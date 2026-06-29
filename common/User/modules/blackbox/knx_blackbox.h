@@ -5,7 +5,7 @@
 #include "octolinker.h"
 #include <stdint.h>
 
-#define KNX_BLACKBOX_CAPACITY 32U
+#define KNX_BLACKBOX_CAPACITY 128U
 
 typedef enum {
     KNX_BLACKBOX_CODE_BOOT = 1,

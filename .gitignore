@@ -52,3 +52,10 @@ Desktop.ini
 *.swo
 *~
 *.bak
+
+# Windows reserved name dirs (accidentally created by shell redirects)
+nul/
+
+# Git history backup (temporary)
+stm32_st_git_backup/
+

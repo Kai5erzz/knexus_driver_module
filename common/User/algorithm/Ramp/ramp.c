@@ -43,7 +43,11 @@ float ramp_calc(ramp_obj_t *ramp)
  */
 ramp_obj_t *ramp_register(int32_t count,int32_t scale)
 {
+    if (idx >= RAMP_NUM_MAX)
+        return NULL;
     ramp_obj_t *object = (ramp_obj_t *)user_malloc(sizeof(ramp_obj_t));
+    if (object == NULL)
+        return NULL;
     memset(object, 0, sizeof(ramp_obj_t));
 
     object->count = count;

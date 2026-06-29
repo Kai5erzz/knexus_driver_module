@@ -70,6 +70,7 @@ knx_status_t DM_IMU_L1_SetActiveIntervalMs(uint16_t interval_ms);
 knx_status_t DM_IMU_L1_SetReportRate(dm_imu_l1_rate_t rate);
 knx_status_t DM_IMU_L1_RequestData(dm_imu_l1_data_type_t reg);
 void DM_IMU_L1_UpdateData(uint32_t std_id, const uint8_t *data, uint8_t len);
+void DM_IMU_L1_Snapshot(dm_imu_l1_data_t *out);
 uint8_t DM_IMU_L1_IsDataReady(void);
 void DM_IMU_L1_DebugOcto(Octolinker_Instance_t *octo, uint16_t base_id);
 

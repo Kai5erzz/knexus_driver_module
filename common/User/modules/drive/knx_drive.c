@@ -170,7 +170,7 @@ knx_status_t knx_drive_update(float dt_s)
     local = s_drive_state;
     taskEXIT_CRITICAL();
 
-    if (local.mode == KNX_DRIVE_MODE_VELOCITY &&
+    if (local.mode != KNX_DRIVE_MODE_IDLE &&
         (!local.command_active ||
          (knx_millis() - local.last_command_ms) > g_knx_params.drive.command_timeout_ms)) {
         (void)knx_drive_stop();

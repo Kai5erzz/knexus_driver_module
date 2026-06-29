@@ -10,11 +10,12 @@
 #include "cmsis_os2.h"
 
 #define KNX_CTRL_TASK_STACK_SIZE  4096U
-#define KNX_CTRL_TASK_PRIORITY    osPriorityAboveNormal
+#define KNX_CTRL_TASK_PRIORITY    osPriorityHigh
 #define KNX_CTRL_TASK_PERIOD_MS   1U
 #define KNX_IMU_DIVIDER           2U
 
 static osThreadId_t knx_ctrl_task_handle;
+static uint32_t knx_ctrl_period_overrun;  /* 控制周期超时计数 (诊断) */
 
 __attribute__((noreturn))
 static void knx_ctrl_task_entry(void *argument)
@@ -35,17 +36,29 @@ static void knx_ctrl_task_entry(void *argument)
         } else {
             knx_gimbal_ctrl_update((float)KNX_CTRL_TASK_PERIOD_MS * 0.001f);
         }
-#elif (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE)
+#endif
+        /* IMU 更新不应被 gimbal 分支独占, 两种模式都需要 (非测试模式) */
+#if (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE)
         imu_div++;
         if (imu_div >= KNX_IMU_DIVIDER) {
             imu_div = 0U;
             knx_imu_update();
         }
+#endif
+#if (KNX_MODULE_DRIVE_EN) && (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE)
         knx_drive_update((float)KNX_CTRL_TASK_PERIOD_MS * 0.001f);
         knx_motor_update();
 #endif
         next_wake += KNX_CTRL_TASK_PERIOD_MS;
         osDelayUntil(next_wake);
+        /* 周期超时检测: 若唤醒时已错过下一时刻, 记录并重置基准避免累积漂移 */
+        {
+            uint32_t now_tick = osKernelGetTickCount();
+            if ((int32_t)(now_tick - next_wake) > 0) {
+                knx_ctrl_period_overrun++;
+                next_wake = now_tick;
+            }
+        }
     }
 }
 

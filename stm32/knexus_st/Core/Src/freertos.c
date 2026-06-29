@@ -27,6 +27,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "knx_tasks.h"
+#include "stm32h7xx.h"
+#include "knx_sys.h"
+#include "knx_safety.h"
 
 /* USER CODE END Includes */
 
@@ -126,6 +129,26 @@ void StartDefaultTask(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+/* 栈溢出钩子: FreeRTOS configCHECK_FOR_STACK_OVERFLOW=2 时由内核调用 */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    (void)xTask;
+    (void)pcTaskName;
+    /* 记录故障(使用WATCHDOG故障码,无专用STACK_OVERFLOW码) */
+    knx_sys_report_fault(KNX_FAULT_WATCHDOG);
+    /* 栈溢出是致命错误,直接复位系统 */
+    NVIC_SystemReset();
+}
+
+/* malloc失败钩子: FreeRTOS configUSE_MALLOC_FAILED_HOOK=1 时由内核调用 */
+void vApplicationMallocFailedHook(void)
+{
+    /* 记录故障 */
+    knx_sys_report_fault(KNX_FAULT_WATCHDOG);
+    /* 堆耗尽是致命错误,直接复位系统 */
+    NVIC_SystemReset();
+}
 
 /* USER CODE END Application */
 

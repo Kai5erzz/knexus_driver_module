@@ -128,6 +128,113 @@ uint32_t knx_ringbuf_push_count(const knx_ringbuf_t *rb)
     return (rb != NULL) ? rb->push_count : 0U;
 }
 
+uint16_t knx_ringbuf_peek(const knx_ringbuf_t *rb, void *dst, uint16_t n)
+{
+    if (rb == NULL || rb->buffer == NULL || dst == NULL || n == 0U) {
+        return 0U;
+    }
+
+    uint8_t *out = (uint8_t *)dst;
+    uint16_t head = rb->head;
+    uint16_t tail = rb->tail;
+    uint16_t available;
+
+    if (head >= tail) {
+        available = (uint16_t)(head - tail);
+    } else {
+        available = (uint16_t)(rb->size - tail + head);
+    }
+
+    if (n > available) {
+        n = available;
+    }
+    if (n == 0U) {
+        return 0U;
+    }
+
+    /* First segment: from tail to end of buffer (or end of data) */
+    uint16_t first_chunk = (uint16_t)(rb->size - tail);
+    if (first_chunk > n) {
+        first_chunk = n;
+    }
+    for (uint16_t i = 0U; i < first_chunk; i++) {
+        out[i] = rb->buffer[(uint16_t)(tail + i)];
+    }
+
+    /* Second segment: wrapped data from beginning of buffer */
+    uint16_t second_chunk = (uint16_t)(n - first_chunk);
+    for (uint16_t i = 0U; i < second_chunk; i++) {
+        out[(uint16_t)(first_chunk + i)] = rb->buffer[i];
+    }
+
+    return n;
+}
+
+uint16_t knx_ringbuf_peek_tail(const knx_ringbuf_t *rb, void *dst, uint16_t n)
+{
+    if (rb == NULL || rb->buffer == NULL || dst == NULL || n == 0U) {
+        return 0U;
+    }
+
+    uint16_t head = rb->head;
+    uint16_t tail = rb->tail;
+    uint16_t available;
+
+    if (head >= tail) {
+        available = (uint16_t)(head - tail);
+    } else {
+        available = (uint16_t)(rb->size - tail + head);
+    }
+
+    if (n > available) {
+        n = available;
+    }
+    if (n == 0U) {
+        return 0U;
+    }
+
+    /* Start position: n bytes back from head (handles wrap) */
+    uint16_t start;
+    if (head >= n) {
+        start = (uint16_t)(head - n);
+    } else {
+        start = (uint16_t)(rb->size - (n - head));
+    }
+
+    uint8_t *out = (uint8_t *)dst;
+    /* First segment: from start to end of buffer */
+    uint16_t first_chunk = (uint16_t)(rb->size - start);
+    if (first_chunk > n) {
+        first_chunk = n;
+    }
+    for (uint16_t i = 0U; i < first_chunk; i++) {
+        out[i] = rb->buffer[(uint16_t)(start + i)];
+    }
+
+    /* Second segment: wrapped data */
+    uint16_t second_chunk = (uint16_t)(n - first_chunk);
+    for (uint16_t i = 0U; i < second_chunk; i++) {
+        out[(uint16_t)(first_chunk + i)] = rb->buffer[i];
+    }
+
+    return n;
+}
+
+uint16_t knx_ringbuf_readable_linear(const knx_ringbuf_t *rb)
+{
+    if (rb == NULL || rb->buffer == NULL || rb->size == 0U) {
+        return 0U;
+    }
+
+    uint16_t head = rb->head;
+    uint16_t tail = rb->tail;
+    if (head >= tail) {
+        return (uint16_t)(head - tail);
+    }
+    /* Wrapped: contiguous from tail to end of buffer */
+    return (uint16_t)(rb->size - tail);
+}
+
 uint32_t knx_ringbuf_pop_count(const knx_ringbuf_t *rb)
 {
     return (rb != NULL) ? rb->pop_count : 0U;

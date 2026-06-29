@@ -4,6 +4,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include <string.h>
+#include <math.h>
 
 static knx_host_comm_t *s_host_comm;
 static knx_vision_target_t s_target;
@@ -66,6 +67,11 @@ static void knx_vision_payload_callback(const uint8_t *payload,
     s_target.err_x = knx_vision_read_f32_le(&payload[1]);
     s_target.err_y = knx_vision_read_f32_le(&payload[5]);
     s_target.conf = knx_vision_read_f32_le(&payload[9]);
+    // NaN/Inf防御:无效数据不更新target,保留上次有效状态
+    if (!isfinite(s_target.err_x) || !isfinite(s_target.err_y) || !isfinite(s_target.conf)) {
+        taskEXIT_CRITICAL();
+        return;
+    }
     s_target.timestamp_ms = knx_millis();
     s_target.rx_count++;
     s_target.valid = 1U;
@@ -142,6 +148,10 @@ uint8_t knx_vision_is_fresh(uint32_t timeout_ms, float min_conf)
 {
     knx_vision_target_t target;
     knx_vision_snapshot(&target);
+    // NaN/Inf防御:无效数据视为不新鲜
+    if (!isfinite(target.conf) || !isfinite(target.err_x) || !isfinite(target.err_y)) {
+        return 0U;
+    }
     if (target.valid == 0U || target.conf < min_conf) {
         return 0U;
     }

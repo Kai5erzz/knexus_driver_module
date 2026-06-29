@@ -14,6 +14,8 @@
 #define KNX_HOST_COMM_MAX_FRAME         (KNX_HOST_COMM_MAX_PAYLOAD + KNX_HOST_COMM_FRAME_OVERHEAD)
 #define KNX_HOST_COMM_MAX_EXTRA_CALLBACKS 4U
 
+#define KNX_HOST_COMM_BYTE_TIMEOUT_MS   50U
+
 #define KNX_HOST_COMM_CRC_PAYLOAD_ONLY  0U
 #define KNX_HOST_COMM_CRC_LEN_PAYLOAD   1U
 
@@ -52,6 +54,8 @@ typedef struct {
     uint16_t rx_index;
     uint16_t rx_crc;
     uint8_t state;
+    uint32_t last_byte_ms;
+    uint32_t last_rx_frame_ms;
 
     knx_host_comm_stats_t stats;
 } knx_host_comm_t;
@@ -85,5 +89,14 @@ knx_status_t knx_host_comm_poll(knx_host_comm_t *comm,
 void knx_host_comm_get_stats(knx_host_comm_t *comm, knx_host_comm_stats_t *stats);
 void knx_host_comm_reset_stats(knx_host_comm_t *comm);
 uint16_t knx_host_comm_max_payload(void);
+
+/* Check for inter-frame byte timeout; call periodically from a task.
+ * If no byte received for KNX_HOST_COMM_BYTE_TIMEOUT_MS while in the middle
+ * of a frame, resets the RX state machine and increments sync_losses. */
+void knx_host_comm_check_timeout(knx_host_comm_t *comm, uint32_t now_ms);
+
+/* Return milliseconds since last successfully decoded frame.
+ * Returns 0xFFFFFFFF if no frame has ever been received. */
+uint32_t knx_host_comm_age_ms(knx_host_comm_t *comm);
 
 #endif /* KNX_HOST_COMM_H */

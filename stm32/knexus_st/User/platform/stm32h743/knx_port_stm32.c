@@ -32,3 +32,16 @@ void knx_port_fault(void)
         /* Trap — optionally attach debugger here */
     }
 }
+
+void knx_port_watchdog_refresh(void)
+{
+    /* Reload IWDG1 counter — direct register write to avoid cross-layer dependency */
+    IWDG1->KR = 0xAAAAU;  /* Reload IWDG counter */
+}
+
+uint8_t knx_port_is_in_isr(void)
+{
+    /* IPSR[5:0] = exception number; 0 = thread mode, >0 = handler (ISR) */
+    uint32_t ipsr = __get_IPSR();
+    return (ipsr != 0U) ? 1U : 0U;
+}

@@ -1,5 +1,6 @@
 #include "knx_host_comm.h"
 #include "knx_health.h"
+#include "knx_time.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -234,6 +235,7 @@ knx_status_t knx_host_comm_feed_byte(knx_host_comm_t *comm, uint8_t byte)
     }
 
     comm->stats.rx_bytes++;
+    comm->last_byte_ms = knx_millis();
 
     switch ((knx_host_comm_rx_state_t)comm->state) {
     case KNX_HOST_COMM_WAIT_SOF0:
@@ -312,6 +314,7 @@ knx_status_t knx_host_comm_feed_byte(knx_host_comm_t *comm, uint8_t byte)
             if (expected == comm->rx_crc) {
                 comm->stats.rx_frames++;
                 comm->stats.last_status = KNX_OK;
+                comm->last_rx_frame_ms = knx_millis();
                 knx_host_comm_report_health(comm, KNX_HEALTH_STATE_OK, KNX_OK);
                 knx_host_comm_dispatch(comm);
             } else {
@@ -392,4 +395,25 @@ void knx_host_comm_reset_stats(knx_host_comm_t *comm)
 uint16_t knx_host_comm_max_payload(void)
 {
     return KNX_HOST_COMM_MAX_PAYLOAD;
+}
+
+void knx_host_comm_check_timeout(knx_host_comm_t *comm, uint32_t now_ms)
+{
+    if (comm == NULL) {
+        return;
+    }
+
+    if (comm->state != (uint8_t)KNX_HOST_COMM_WAIT_SOF0 &&
+        (now_ms - comm->last_byte_ms) > KNX_HOST_COMM_BYTE_TIMEOUT_MS) {
+        knx_host_comm_reset_rx(comm);
+        comm->stats.sync_losses++;
+    }
+}
+
+uint32_t knx_host_comm_age_ms(knx_host_comm_t *comm)
+{
+    if (comm == NULL || comm->last_rx_frame_ms == 0U) {
+        return 0xFFFFFFFFU;
+    }
+    return knx_millis() - comm->last_rx_frame_ms;
 }

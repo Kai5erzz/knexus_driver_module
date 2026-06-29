@@ -14,6 +14,7 @@ typedef enum {
     KNX_FAULT_OVERSPEED     = (1 << 5),
     KNX_FAULT_GIMBAL_LIMIT  = (1 << 6),
     KNX_FAULT_GIMBAL_COMMAND = (1 << 7),
+    KNX_FAULT_HOST_COMM_LOST = (1 << 8),
 } knx_fault_t;
 
 typedef enum {

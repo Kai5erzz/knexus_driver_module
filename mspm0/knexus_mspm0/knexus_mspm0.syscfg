@@ -124,7 +124,6 @@ BMI_SPI.peripheral.mosiPin.$assign = "PA14";
 
 const CAN0 = MCAN.addInstance();
 CAN0.$name = "MCAN0";
-CAN0.loopbackMode = "internal";
 CAN0.peripheral.$assign = "CANFD0";
 CAN0.peripheral.rxPin.$assign = "PA13";
 CAN0.peripheral.txPin.$assign = "PA12";

@@ -7,9 +7,12 @@
 #include "knx_math.h"
 #include "knx_motor.h"
 #include "knx_params.h"
+#include "knx_port.h"
 #include "knx_project_config.h"
 #include "knx_sys.h"
 #include "knx_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #if (KNX_MODULE_GIMBAL_EN)
 #include "dm_imu_l1.h"
@@ -18,9 +21,11 @@
 #endif
 
 static knx_safety_level_t safety_level = KNX_SAFETY_LEVEL_OK;
-static uint32_t fault_flags = KNX_FAULT_NONE;
-static uint32_t warning_flags = KNX_WARN_NONE;
+static volatile uint32_t fault_flags = KNX_FAULT_NONE;
+static volatile uint32_t warning_flags = KNX_WARN_NONE;
 static uint32_t safety_init_ms = 0U;
+
+#define KNX_SAFETY_HOST_COMM_TIMEOUT_MS 1000U
 
 float knx_safety_gimbal_enable = 1.0f;
 float knx_safety_gimbal_startup_grace_ms = 3000.0f;
@@ -65,13 +70,18 @@ static void apply_safety_result(uint32_t new_faults,
                                 uint32_t imu_age_ms,
                                 uint32_t vision_age_ms)
 {
+    uint32_t local_faults;
+
+    taskENTER_CRITICAL();
     warning_flags = new_warnings;
     fault_flags |= new_faults;
+    local_faults = fault_flags;
+    taskEXIT_CRITICAL();
 
-    if (fault_flags != 0U) {
+    if (local_faults != 0U) {
         safety_level = KNX_SAFETY_LEVEL_FAULT;
-        knx_sys_report_fault(fault_flags);
-    } else if (warning_flags != 0U) {
+        knx_sys_report_fault(local_faults);
+    } else if (new_warnings != 0U) {
         safety_level = KNX_SAFETY_LEVEL_WARN;
     } else {
         safety_level = KNX_SAFETY_LEVEL_OK;
@@ -83,7 +93,7 @@ static void apply_safety_result(uint32_t new_faults,
                             (safety_level == KNX_SAFETY_LEVEL_WARN) ? KNX_HEALTH_STATE_WARN :
                                                                       KNX_HEALTH_STATE_OK,
                             KNX_OK,
-                            knx_safety_get_faults() | (warning_flags << 16),
+                            knx_safety_get_faults() | (new_warnings << 16),
                             knx_safety_update_count);
 }
 
@@ -182,6 +192,10 @@ static knx_status_t knx_safety_update_drive(void)
             knx_abs_f(imu.roll) > g_knx_params.safety.max_tilt_deg) {
             faults |= KNX_FAULT_TILT;
         }
+
+        if (knx_health_age_ms(KNX_HEALTH_SOURCE_HOST_COMM) > KNX_SAFETY_HOST_COMM_TIMEOUT_MS) {
+            faults |= KNX_FAULT_HOST_COMM_LOST;
+        }
     }
     if (!strict_check) {
         warnings |= KNX_WARN_STARTUP;
@@ -205,6 +219,7 @@ static knx_status_t knx_safety_update_drive(void)
 knx_status_t knx_safety_update(void)
 {
     knx_safety_update_count++;
+    knx_port_watchdog_refresh();
 
 #if (KNX_ACTIVE_TEST_MODE != KNX_ACTIVE_TEST_MODE_NONE)
     warning_flags = KNX_WARN_STARTUP;
@@ -231,7 +246,11 @@ knx_safety_level_t knx_safety_get_level(void)
 
 uint32_t knx_safety_get_faults(void)
 {
-    return fault_flags | knx_sys_get_fault_latch();
+    uint32_t flags;
+    taskENTER_CRITICAL();
+    flags = fault_flags | knx_sys_get_fault_latch();
+    taskEXIT_CRITICAL();
+    return flags;
 }
 
 uint32_t knx_safety_get_warnings(void)
@@ -241,8 +260,10 @@ uint32_t knx_safety_get_warnings(void)
 
 void knx_safety_clear_faults(void)
 {
+    taskENTER_CRITICAL();
     fault_flags = KNX_FAULT_NONE;
     warning_flags = KNX_WARN_NONE;
+    taskEXIT_CRITICAL();
     safety_level = KNX_SAFETY_LEVEL_OK;
     safety_init_ms = knx_millis();
     knx_sys_clear_faults();

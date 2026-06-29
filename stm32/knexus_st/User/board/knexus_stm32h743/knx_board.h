@@ -45,4 +45,7 @@ uint32_t knx_board_host_comm_uart_rx_state(void);
 uint32_t knx_board_host_comm_uart_start_status(void);
 uint8_t knx_board_host_comm_rx_last_byte(void);
 
+/* Refresh the hardware independent watchdog (IWDG1) */
+void knx_board_watchdog_refresh(void);
+
 #endif /* KNX_BOARD_H */

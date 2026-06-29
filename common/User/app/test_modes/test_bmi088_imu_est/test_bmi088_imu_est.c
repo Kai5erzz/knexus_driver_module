@@ -33,7 +33,7 @@
  *   CH22: mahony_q_norm
  *
  * Matrix output:
- *   var_id 100: 8x16 U8_MATRIX ¡ª 5-pointed star, breathing on/off
+ *   var_id 100: 8x16 U8_MATRIX ï¿½ï¿½ 5-pointed star, breathing on/off
  *   CH100:      breath phase [0.0 .. 1.0]
  */
 #include "test_bmi088_imu_est.h"
@@ -120,7 +120,8 @@ void test_bmi088_imu_est_loop(void)
 
             MahonyAHRSupdateIMU(s_mahony_q,
                                 imu->gyro[0], imu->gyro[1], imu->gyro[2],
-                                imu->accel[0], imu->accel[1], imu->accel[2]);
+                                imu->accel[0], imu->accel[1], imu->accel[2],
+                                0.001f);
 
             float qn = s_mahony_q[0] * s_mahony_q[0]
                      + s_mahony_q[1] * s_mahony_q[1]

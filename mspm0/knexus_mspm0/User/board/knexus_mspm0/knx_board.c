@@ -149,3 +149,7 @@ const knx_spi_t *knx_board_get_bmi088_accel_spi(void) { return &s_bmi088_accel_s
 const knx_spi_t *knx_board_get_bmi088_gyro_spi(void)  { return &s_bmi088_gyro_spi; }
 knx_can_t       *knx_board_get_can(void)              { return &s_can; }
 const track_sensor_port_t *knx_board_get_track_sensor_port(void) { return &s_track_sensor; }
+
+/* ── STM32 API parity stubs — MSPM0 has a single MCAN instance ── */
+knx_can_t       *knx_board_get_jc_can(void)           { return &s_can; }
+knx_can_t       *knx_board_get_dm_imu_l1_can(void)    { return &s_can; }

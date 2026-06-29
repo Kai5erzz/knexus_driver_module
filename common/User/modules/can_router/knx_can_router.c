@@ -1,5 +1,7 @@
 #include "knx_can_router.h"
 #include "knx_blackbox.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -63,6 +65,15 @@ knx_status_t knx_can_router_add_range(knx_can_router_t *router,
         return KNX_BUSY;
     }
 
+    /* Check for ID range overlap with already-registered routes */
+    for (uint8_t i = 0U; i < router->route_count; i++) {
+        const knx_can_router_route_t *existing = &router->routes[i];
+        if (first_id <= existing->last_id && last_id >= existing->first_id) {
+            router->stats.last_status = KNX_BUSY;
+            return KNX_BUSY;
+        }
+    }
+
     knx_can_router_route_t *route = &router->routes[router->route_count];
     route->first_id = first_id;
     route->last_id = last_id;
@@ -108,7 +119,10 @@ void knx_can_router_get_stats(const knx_can_router_t *router,
         return;
     }
 
+    /* Atomic structure copy — stats are modified by ISR in rx_dispatch */
+    taskENTER_CRITICAL();
     *stats = router->stats;
+    taskEXIT_CRITICAL();
 }
 
 void knx_can_router_reset_stats(knx_can_router_t *router)

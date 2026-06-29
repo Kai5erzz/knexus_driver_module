@@ -25,12 +25,13 @@ static void knx_comm_task_entry(void *argument)
 
     for (;;) {
         uint16_t n;
+        int max_rounds = 8;
         do {
             n = knx_board_host_comm_read(rx_buf, sizeof(rx_buf));
             if (n > 0U) {
                 (void)knx_vision_feed_bytes(rx_buf, n);
             }
-        } while (n == sizeof(rx_buf));
+        } while (n == sizeof(rx_buf) && --max_rounds > 0);
 
         next_wake += KNX_COMM_TASK_PERIOD_MS;
         osDelayUntil(next_wake);

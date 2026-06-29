@@ -21,14 +21,19 @@ Encoder_t encoder_right = {
     .last_raw = 0,
 };
 
-void Encoder_AttachPorts(const knx_encoder_port_t *left,
+knx_status_t Encoder_AttachPorts(const knx_encoder_port_t *left,
                          const knx_encoder_port_t *right)
 {
+    if (left == NULL || right == NULL) {
+        return KNX_INVALID_ARG;
+    }
+
     encoder_left.port = left;
     encoder_left.is_lptim = (left->type == KNX_ENCODER_LPTIM) ? 1U : 0U;
 
     encoder_right.port = right;
     encoder_right.is_lptim = (right->type == KNX_ENCODER_LPTIM) ? 1U : 0U;
+    return KNX_OK;
 }
 
 static uint16_t Encoder_ReadRaw(Encoder_t *enc)
@@ -63,8 +68,12 @@ static void Encoder_ApplyDelta(Encoder_t *enc, int32_t signed_count)
     enc->position_m += enc->delta_m;
 }
 
-void Encoder_Init(void)
+knx_status_t Encoder_Init(void)
 {
+    if (encoder_left.port == NULL || encoder_right.port == NULL) {
+        return KNX_INVALID_ARG;
+    }
+
     knx_encoder_start(encoder_left.port);
     knx_encoder_start(encoder_right.port);
 
@@ -78,6 +87,7 @@ void Encoder_Init(void)
     speed_lpf_right = 0.0f;
     encoder_left.last_calc_tick = knx_millis();
     encoder_right.last_calc_tick = knx_millis();
+    return KNX_OK;
 }
 
 void Encoder_Update(void)

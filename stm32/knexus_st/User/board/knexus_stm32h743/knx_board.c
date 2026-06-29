@@ -1,6 +1,7 @@
 /* Board implementation for knexus_stm32h743 */
 #include "knx_board.h"
 #include "knx_board_config.h"
+#include "stm32h7xx_hal.h"
 #include "drv8701e.h"
 #include "bmi088.h"
 #include "encoder.h"
@@ -206,6 +207,8 @@ static const knx_gpio_t beep_gpio = {
 
 /* ============================================================ */
 
+/* IWDG handled via direct register access — no HAL dependency needed */
+
 static void knx_board_host_comm_start_rx(void)
 {
     HAL_StatusTypeDef status = HAL_UART_Receive_IT(&huart2, &board_host_rx_byte, 1U);
@@ -318,9 +321,9 @@ knx_status_t knx_board_init(void)
     DRV8701E_AttachCurrentSampleTrigger(&drv_current_sample_trigger);
     DRV8701E_Init();
 
-    /* Init encoders �?bind platform ports first */
-    Encoder_AttachPorts(&enc_left_port, &enc_right_port);
-    Encoder_Init();
+    /* Init encoders — bind platform ports first */
+    (void)Encoder_AttachPorts(&enc_left_port, &enc_right_port);
+    (void)Encoder_Init();
 
     /* Init track sensor �?bind platform ports first */
     TrackSensor_AttachPorts(&track_port);
@@ -338,7 +341,18 @@ knx_status_t knx_board_init(void)
     knx_beep_attach_port(beep_gpio);
     knx_beep_init();
 
+    /* IWDG init via direct register access (LSI ~32kHz, prescaler /32 → 1kHz, reload=200 → 200ms) */
+    IWDG1->KR  = 0xCCCCU;   /* Start IWDG */
+    IWDG1->PR  = 3U;        /* Prescaler /32 → 1kHz tick */
+    IWDG1->RLR = 200U;      /* Reload value → 200ms timeout */
+    IWDG1->KR  = 0xAAAAU;   /* Reload counter (first feed) */
+
     return KNX_OK;
+}
+
+void knx_board_watchdog_refresh(void)
+{
+    IWDG1->KR = 0xAAAAU;  /* Reload IWDG counter */
 }
 
 void knx_board_post_init(void)

@@ -25,11 +25,13 @@
 void *zmalloc(size_t size)
 {
     void *ptr = malloc(size);
+    if (ptr == NULL)
+        return NULL;
     memset(ptr, 0, size);
     return ptr;
 }
 
-// ¿ìËÙ¿ª·½
+// ï¿½ï¿½ï¿½Ù¿ï¿½ï¿½ï¿½
 float Sqrt(float x)
 {
     float y;
@@ -47,16 +49,18 @@ float Sqrt(float x)
     // refine
     maxError = x * 0.001f;
 
-    do
+    for (int i = 0; i < 10; i++)
     {
         delta = (y * y) - x;
         y -= delta / (2 * y);
-    } while (delta > maxError || delta < -maxError);
+        if (delta <= maxError && delta >= -maxError)
+            break;
+    }
 
     return y;
 }
 
-// ¾ø¶ÔÖµÏÞÖÆ
+// ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½
 float abs_limit(float num, float Limit)
 {
     if (num > Limit)
@@ -70,7 +74,7 @@ float abs_limit(float num, float Limit)
     return num;
 }
 
-// ÅÐ¶Ï·ûºÅÎ»
+// ï¿½Ð¶Ï·ï¿½ï¿½ï¿½Î»
 float sign(float value)
 {
     if (value >= 0.0f)
@@ -83,7 +87,7 @@ float sign(float value)
     }
 }
 
-// ¸¡µãËÀÇø
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 float float_deadband(float Value, float minValue, float maxValue)
 {
     if (Value < maxValue && Value > minValue)
@@ -93,7 +97,7 @@ float float_deadband(float Value, float minValue, float maxValue)
     return Value;
 }
 
-// ÏÞ·ùº¯Êý
+// ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½
 float float_constrain(float Value, float minValue, float maxValue)
 {
     if (Value < minValue)
@@ -104,7 +108,7 @@ float float_constrain(float Value, float minValue, float maxValue)
         return Value;
 }
 
-// ÏÞ·ùº¯Êý
+// ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½
 int16_t int16_constrain(int16_t Value, int16_t minValue, int16_t maxValue)
 {
     if (Value < minValue)
@@ -115,7 +119,7 @@ int16_t int16_constrain(int16_t Value, int16_t minValue, int16_t maxValue)
         return Value;
 }
 
-// Ñ­»·ÏÞ·ùº¯Êý
+// Ñ­ï¿½ï¿½ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½
 float loop_float_constrain(float Input, float minValue, float maxValue)
 {
     if (maxValue < minValue)
@@ -142,9 +146,9 @@ float loop_float_constrain(float Input, float minValue, float maxValue)
     return Input;
 }
 
-// »¡¶È¸ñÊ½»¯Îª-PI~PI
+// ï¿½ï¿½ï¿½È¸ï¿½Ê½ï¿½ï¿½Îª-PI~PI
 
-// ½Ç¶È¸ñÊ½»¯Îª-180~180
+// ï¿½Ç¶È¸ï¿½Ê½ï¿½ï¿½Îª-180~180
 float theta_format(float Ang)
 {
     return loop_float_constrain(Ang, -180.0f, 180.0f);
@@ -161,7 +165,7 @@ int float_rounding(float raw)
     return integer;
 }
 
-// ÈýÎ¬ÏòÁ¿¹éÒ»»¯
+// ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½
 float *Norm3d(float *v)
 {
     float len = Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
@@ -171,13 +175,13 @@ float *Norm3d(float *v)
     return v;
 }
 
-// ¼ÆËãÄ£³¤
+// ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½
 float NormOf3d(float *v)
 {
     return Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-// ÈýÎ¬ÏòÁ¿²æ³Ëv1 x v2
+// ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½v1 x v2
 void Cross3d(float *v1, float *v2, float *res)
 {
     res[0] = v1[1] * v2[2] - v1[2] * v2[1];
@@ -185,13 +189,13 @@ void Cross3d(float *v1, float *v2, float *res)
     res[2] = v1[0] * v2[1] - v1[1] * v2[0];
 }
 
-// ÈýÎ¬ÏòÁ¿µã³Ë
+// ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 float Dot3d(float *v1, float *v2)
 {
     return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
 }
 
-// ¾ùÖµÂË²¨,É¾³ýbufferÖÐµÄ×îºóÒ»¸öÔªËØ,ÌîÈëÐÂµÄÔªËØ²¢ÇóÆ½¾ùÖµ
+// ï¿½ï¿½Öµï¿½Ë²ï¿½,É¾ï¿½ï¿½bufferï¿½Ðµï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ôªï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½Âµï¿½Ôªï¿½Ø²ï¿½ï¿½ï¿½Æ½ï¿½ï¿½Öµ
 float AverageFilter(float new_data, float *buf, uint8_t len)
 {
     float sum = 0;

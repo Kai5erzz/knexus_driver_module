@@ -64,8 +64,11 @@ static float valid_dt(uint32_t now_ms)
 {
     float dt = (s_last_update_ms == 0U) ? 0.001f
                                         : (float)(now_ms - s_last_update_ms) * 0.001f;
-    if (dt <= 0.0f || dt > 0.05f) {
-        dt = 0.001f;
+    if (!isfinite(dt) || dt <= 0.0f) {
+        return -1.0f; // 信号:跳过本次更新,不更新时间戳
+    }
+    if (dt > 0.05f) {
+        dt = 0.01f; // 大dt钳位到标称周期(10ms)而非1ms
     }
     s_last_update_ms = now_ms;
     return dt;
@@ -103,6 +106,7 @@ static void copy_ekf_output_to_public(void)
     s_imu_data.ekf_stable = QEKF_INS.StableFlag != 0U;
     taskEXIT_CRITICAL();
 
+    taskENTER_CRITICAL();
     imu_data.roll = s_imu_data.roll;
     imu_data.pitch = s_imu_data.pitch;
     imu_data.yaw = s_imu_data.yaw;
@@ -110,6 +114,7 @@ static void copy_ekf_output_to_public(void)
     imu_data.pitch_total = s_imu_data.pitch_total;
     imu_data.yaw_total = s_imu_data.yaw_total;
     memcpy(imu_data.q, s_imu_data.q, sizeof(imu_data.q));
+    taskEXIT_CRITICAL();
 }
 
 static void copy_driver_attitude_fallback(void)
@@ -159,10 +164,14 @@ knx_status_t knx_imu_update(void)
     }
 
     if (!s_ekf_ready) {
+        Kalman_Filter_Deinit(&QEKF_INS.IMU_QuaternionEKF); // 释放旧矩阵,防止内存泄漏
         return knx_imu_init();
     }
 
     float dt = valid_dt(knx_millis());
+    if (dt <= 0.0f) {
+        return KNX_OK; // dt无效,跳过本次EKF更新,保留上次有效状态
+    }
     QEKF_INS.Q1 = knx_imu_ekf_q1;
     QEKF_INS.Q2 = knx_imu_ekf_q2;
     QEKF_INS.R = knx_imu_ekf_r;

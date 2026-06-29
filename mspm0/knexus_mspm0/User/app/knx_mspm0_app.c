@@ -44,9 +44,9 @@ knx_status_t knx_mspm0_upper_init(void)
                          knx_board_get_drv_right_port());
     DRV8701E_Init();
 
-    Encoder_AttachPorts(knx_board_get_encoder_left(),
-                        knx_board_get_encoder_right());
-    Encoder_Init();
+    (void)Encoder_AttachPorts(knx_board_get_encoder_left(),
+                              knx_board_get_encoder_right());
+    (void)Encoder_Init();
 
     TrackSensor_AttachPorts(knx_board_get_track_sensor_port());
     TrackSensor_Init();

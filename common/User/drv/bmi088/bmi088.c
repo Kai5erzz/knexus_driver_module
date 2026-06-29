@@ -55,17 +55,23 @@ static pid_obj_t *s_heater_pid = NULL;
 
 static knx_status_t bmi088_spi_rw(knx_spi_t *spi, uint8_t tx, uint8_t *rx)
 {
-    knx_status_t st = knx_spi_transmit_receive(spi, &tx, rx, 1, 100);
+    knx_status_t st = knx_spi_transmit_receive(spi, &tx, rx, 1, 5);
     if (st != KNX_OK) {
         imu_data.spi_err_cnt++;
     }
     return st;
 }
 
+static uint8_t s_spi_frame_error;  /* 当前帧 SPI 错误标志 (BMI088_Read 每帧复位) */
+
 static uint8_t bmi088_rw_byte(knx_spi_t *spi, uint8_t tx)
 {
     uint8_t rx = 0;
-    bmi088_spi_rw(spi, tx, &rx);
+    knx_status_t st = bmi088_spi_rw(spi, tx, &rx);
+    if (st != KNX_OK) {
+        /* SPI 超时/错误: 标记本帧数据不可信 */
+        s_spi_frame_error = 1;
+    }
     return rx;
 }
 
@@ -577,6 +583,7 @@ void BMI088_Init(knx_spi_t *accel_spi, knx_spi_t *gyro_spi)
 void BMI088_Read(void)
 {
     bmi088_read_count++;
+    s_spi_frame_error = 0;
     uint8_t buf[8];
     int16_t raw;
 
@@ -637,6 +644,12 @@ void BMI088_Read(void)
             raw = (int16_t)((buf[7] << 8) | buf[6]);
             imu_data.gyro[2] = raw * BMI088_GYRO_SEN - imu_data.gyro_offset[2];
         }
+    }
+
+    /* 本帧 SPI 出错: 数据不可信, 跳过温度/加热/姿态更新, 仅累计帧计数 */
+    if (s_spi_frame_error) {
+        imu_data.frame_count++;
+        return;
     }
 
     /* ---- 温度 (挂在 accel CS �? ---- */

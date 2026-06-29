@@ -1,4 +1,6 @@
 #include "knx_can.h"
+#include "knx_health.h"
+#include "knx_time.h"
 #include "stm32h7xx_hal.h"
 #include <stddef.h>
 
@@ -12,6 +14,7 @@ typedef struct {
 } knx_can_slot_t;
 
 static knx_can_slot_t s_slots[KNX_CAN_MAX_BUSES];
+static volatile uint32_t s_can_error_count = 0U;
 
 static knx_status_t knx_can_status(HAL_StatusTypeDef status)
 {
@@ -143,7 +146,12 @@ knx_status_t knx_can_start(knx_can_t *can)
     }
 
     status = HAL_FDCAN_ActivateNotification(hfdcan,
-                                            FDCAN_IT_RX_FIFO0_NEW_MESSAGE,
+                                            FDCAN_IT_RX_FIFO0_NEW_MESSAGE |
+                                            FDCAN_IT_BUS_OFF |
+                                            FDCAN_IT_ERROR_PASSIVE |
+                                            FDCAN_IT_ERROR_WARNING |
+                                            FDCAN_IT_RX_FIFO0_FULL |
+                                            FDCAN_IT_RX_FIFO0_MESSAGE_LOST,
                                             0U);
     if (status == HAL_OK) {
         slot->started = 1U;
@@ -158,13 +166,20 @@ knx_status_t knx_can_transmit_std(knx_can_t *can,
                                   uint8_t len,
                                   uint32_t timeout_ms)
 {
-    (void)timeout_ms;
-
     if (can == NULL || can->handle == NULL || data == NULL || len > 8U || std_id > 0x7FFU) {
         return KNX_INVALID_ARG;
     }
 
     FDCAN_HandleTypeDef *hfdcan = (FDCAN_HandleTypeDef *)can->handle;
+
+    /* Wait for TX FIFO to have free space, with timeout */
+    uint32_t start = knx_millis();
+    while (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan) == 0U) {
+        if (knx_millis() - start >= timeout_ms) {
+            return KNX_TIMEOUT;
+        }
+    }
+
     FDCAN_TxHeaderTypeDef header = {0};
     header.Identifier = std_id;
     header.IdType = FDCAN_STANDARD_ID;
@@ -181,6 +196,11 @@ knx_status_t knx_can_transmit_std(knx_can_t *can,
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
+    /* Check and clear FIFO message lost condition */
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_MESSAGE_LOST) != 0U) {
+        __HAL_FDCAN_CLEAR_FLAG(hfdcan, FDCAN_FLAG_RX_FIFO0_MESSAGE_LOST);
+    }
+
     if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) == 0U) {
         return;
     }
@@ -204,5 +224,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
                            knx_can_dlc_to_len(header.DataLength),
                            slot->user);
         }
+    }
+}
+
+void HAL_FDCAN_ErrorCallback(FDCAN_HandleTypeDef *hfdcan)
+{
+    uint32_t error = HAL_FDCAN_GetError(hfdcan);
+    s_can_error_count++;
+
+    /* Detect bus-off via status flag (no HAL_FDCAN_ERROR_BUS_OFF exists) */
+    uint32_t bus_off = __HAL_FDCAN_GET_FLAG(hfdcan, FDCAN_FLAG_BUS_OFF);
+
+    (void)knx_health_report(KNX_HEALTH_SOURCE_JC,
+                            bus_off ? KNX_HEALTH_STATE_FAULT :
+                                      KNX_HEALTH_STATE_WARN,
+                            KNX_ERROR,
+                            error,
+                            s_can_error_count);
+
+    /* Bus-off recovery: stop and restart FDCAN */
+    if (bus_off != 0U) {
+        (void)HAL_FDCAN_Stop(hfdcan);
+        (void)HAL_FDCAN_Start(hfdcan);
     }
 }

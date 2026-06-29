@@ -2,6 +2,7 @@
 #define __ENCODER_H
 
 #include "knx_encoder.h"
+#include "knx_types.h"
 
 /* Direction signs: positive speed means the wheel moves the chassis forward. */
 #define ENC1_DIR_SIGN       -1
@@ -34,9 +35,9 @@ typedef struct {
 extern Encoder_t encoder_left;
 extern Encoder_t encoder_right;
 
-void Encoder_AttachPorts(const knx_encoder_port_t *left,
+knx_status_t Encoder_AttachPorts(const knx_encoder_port_t *left,
                          const knx_encoder_port_t *right);
-void Encoder_Init(void);
+knx_status_t Encoder_Init(void);
 void Encoder_Update(void);
 int32_t Encoder_GetCount(Encoder_t *enc);
 void Encoder_Reset(Encoder_t *enc);

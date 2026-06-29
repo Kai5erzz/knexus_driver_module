@@ -57,17 +57,20 @@ static void f_Changing_Integration_Rate(pid_obj_t *pid)
         if (usr_abs(pid->Err) <= pid->CoefB)
             return; // Full integral
         if (usr_abs(pid->Err) <= (pid->CoefA + pid->CoefB))
-            pid->ITerm *= (pid->CoefA - usr_abs(pid->Err) + pid->CoefB) / pid->CoefA;
-        else // 鏈€澶ч槇鍊?涓嶄娇鐢ㄧН鍒?
+        {
+            if (pid->CoefA != 0.0f)
+                pid->ITerm *= (pid->CoefA - usr_abs(pid->Err) + pid->CoefB) / pid->CoefA;
+        }
+        else
             pid->ITerm = 0;
     }
 }
 
 static void f_Integral_Limit(pid_obj_t *pid)
 {
-    static float temp_Output, temp_Iout;
+    float temp_Output, temp_Iout;
     temp_Iout = pid->Iout + pid->ITerm;
-    temp_Output = pid->Pout + pid->Iout + pid->Dout;
+    temp_Output = pid->Pout + temp_Iout + pid->Dout;
     if (usr_abs(temp_Output) > pid->MaxOut)
     {
         if (pid->Err * pid->Iout > 0) // 绉垎鍗磋繕鍦ㄧ疮绉?
@@ -153,7 +156,11 @@ static void f_PID_ErrorHandle(pid_obj_t *pid)
  */
 pid_obj_t *pid_register(pid_config_t *config)
 {
+    if (idx >= PID_NUM_MAX)
+        return NULL;
     pid_obj_t *object = (pid_obj_t *)malloc(sizeof(pid_obj_t));
+    if (object == NULL)
+        return NULL;
     memset(object, 0, sizeof(pid_obj_t));
 
     // basic parameter
@@ -235,6 +242,7 @@ float pid_calculate(pid_obj_t *pid, float measure, float ref)
     {
         pid->Output = 0;
         pid->ITerm = 0;
+        pid->Iout = 0;
     }
 
     // 淇濆瓨褰撳墠鏁版嵁,鐢ㄤ簬涓嬫璁＄畻
@@ -268,4 +276,5 @@ void pid_clear(pid_obj_t *pid)
     pid->Last_Dout=0;
     pid->ERRORHandler.error_count=0;
     pid->ERRORHandler.error_type=0;
+    pid->time_stamp_us = pid_time_us();
 }

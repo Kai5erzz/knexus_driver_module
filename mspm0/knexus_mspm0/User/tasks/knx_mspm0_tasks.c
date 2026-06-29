@@ -23,7 +23,7 @@
 #define BEEP_STACK_SIZE        128U
 #define BEEP_PRIORITY          (tskIDLE_PRIORITY + 1U)
 
-#define INIT_STACK_SIZE        768U
+#define INIT_STACK_SIZE        512U
 #define INIT_PRIORITY          (tskIDLE_PRIORITY + 2U)
 
 #define CONTROL_STACK_SIZE     512U

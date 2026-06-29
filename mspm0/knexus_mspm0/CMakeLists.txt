@@ -62,6 +62,7 @@ set(COMMON_MODULE_SOURCES
 )
 
 # Common algorithm sources.
+# QuaternionEKF is included because knx_imu.c references QEKF_INS / IMU_QuaternionEKF_*.
 set(COMMON_ALGO_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/algorithm/PID/PID.c
     ${KNEXUS_COMMON_USER_DIR}/algorithm/Ramp/ramp.c
@@ -80,7 +81,21 @@ file(GLOB_RECURSE MSPM0_BOARD_SOURCES
 file(GLOB_RECURSE MSPM0_PLATFORM_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/User/platform/*.c"
 )
-list(FILTER MSPM0_PLATFORM_SOURCES EXCLUDE REGEX "knx_telemetry_mspm0_stub\\.c$")
+# Include the MSPM0 lightweight telemetry stub (avoids pulling in
+# knx_motor/knx_imu/knx_drive/knx_sys/bmi088 heavy dependencies).
+# Exclude the full common telemetry module instead.
+list(FILTER COMMON_MODULE_SOURCES EXCLUDE REGEX "knx_telemetry\\.c$")
+
+# Heavy / vision-only modules are not used on MSPM0 (Cortex-M0+, 32 KB SRAM).
+# They are deliberately absent from COMMON_MODULE_SOURCES above; these filters
+# are a safety net to guarantee they cannot be pulled in by accident.
+# NOTE: knx_grayscale.c is intentionally KEPT — it is lightweight (reuses the
+# TrackSensor driver, ~5 KB source) and is actively called by
+# knx_mspm0_app_init() / knx_mspm0_upper_medium_update(). Excluding it would
+# break the link. QuaternionEKF is excluded separately from COMMON_ALGO_SOURCES.
+list(FILTER COMMON_MODULE_SOURCES EXCLUDE REGEX "knx_gimbal_ctrl\\.c$")
+list(FILTER COMMON_MODULE_SOURCES EXCLUDE REGEX "knx_vision\\.c$")
+list(FILTER COMMON_MODULE_SOURCES EXCLUDE REGEX "track_tinycnn.*\\.c$")
 file(GLOB_RECURSE MSPM0_APP_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/User/app/*.c"
 )

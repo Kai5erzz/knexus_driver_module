@@ -23,8 +23,8 @@ extern volatile float twoKi;			// 2 * integral gain (Ki)
 //---------------------------------------------------------------------------------------------------
 // Function declarations
 
-void MahonyAHRSupdate(float q[4], float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
-void MahonyAHRSupdateIMU(float q[4], float gx, float gy, float gz, float ax, float ay, float az);
+void MahonyAHRSupdate(float q[4], float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz, float dt);
+void MahonyAHRSupdateIMU(float q[4], float gx, float gy, float gz, float ax, float ay, float az, float dt);
 
 #endif
 //=====================================================================================================

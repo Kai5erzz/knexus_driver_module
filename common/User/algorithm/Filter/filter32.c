@@ -60,7 +60,7 @@ void Window_Filter_Init(Window_Filter_t *window_filter, uint8_t windowSize)
     window_filter->WindowNum = 0;
     window_filter->WindowSize = windowSize;
     window_filter->WindowBuffer = (float *)user_malloc(sizeof(float) * windowSize);
-    memset(window_filter->WindowBuffer, 0, windowSize);
+    memset(window_filter->WindowBuffer, 0, windowSize * sizeof(float));
 }
 
 /**
@@ -102,6 +102,8 @@ void IIR_Filter_Init(IIR_Filter_t *iir_filter, float *num, float *den, uint8_t o
     iir_filter->ybuf = (float *)user_malloc(sizeof(float) * order);
     memcpy(iir_filter->Num, num, sizeof(float) * order);
     memcpy(iir_filter->Den, den, sizeof(float) * order);
+    memset(iir_filter->xbuf, 0, sizeof(float) * order);
+    memset(iir_filter->ybuf, 0, sizeof(float) * order);
 }
 
 /**
@@ -146,6 +148,9 @@ void ave_fil_init(ave_filter_t *ave_fil)
 // 更新平均滤波器的值并计算新的平均值
 float ave_fil_update(ave_filter_t *ave_fil, float value, uint16_t max)
 {
+    // max 为 0 时直接返回, 避免除零
+    if (max == 0)
+        return value;
     // 如果传入的滤波次数大于最大允许的滤波次数，则将其设为最大允许值
     if(max > ave_filter_times_max)
     {

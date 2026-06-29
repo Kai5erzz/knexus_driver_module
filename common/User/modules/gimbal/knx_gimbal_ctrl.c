@@ -26,15 +26,15 @@ float knx_gimbal_ctrl_pitch_kd = 0.01f;
 
 
 
-float knx_gimbal_ctrl_hold_yaw_kp = 0.2f;
-float knx_gimbal_ctrl_hold_yaw_ki = 0.0f;
-float knx_gimbal_ctrl_hold_yaw_kd = 0.0f;
-float knx_gimbal_ctrl_hold_pitch_kp = 0.2f;
-float knx_gimbal_ctrl_hold_pitch_ki = 0.0f;
-float knx_gimbal_ctrl_hold_pitch_kd = 0.0f;
+float knx_gimbal_ctrl_hold_yaw_kp = 0.25f;
+float knx_gimbal_ctrl_hold_yaw_ki = 0.02f;
+float knx_gimbal_ctrl_hold_yaw_kd = 0.01f;
+float knx_gimbal_ctrl_hold_pitch_kp = 0.1f;
+float knx_gimbal_ctrl_hold_pitch_ki = 0.005f;
+float knx_gimbal_ctrl_hold_pitch_kd = 0.01f;
 
-float knx_gimbal_ctrl_output_limit_rpm = 20.0f;
-float knx_gimbal_ctrl_hold_output_limit_rpm = 15.0f;
+float knx_gimbal_ctrl_output_limit_rpm = 300.0f;
+float knx_gimbal_ctrl_hold_output_limit_rpm = 200.0f;
 float knx_gimbal_ctrl_integral_limit = 1000.0f;
 float knx_gimbal_ctrl_yaw_target_deg = 0.0f;
 float knx_gimbal_ctrl_pitch_target_deg = 0.0f;
