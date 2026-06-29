@@ -1,0 +1,1846 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "knexus_st.elf"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"add_link_options",
+			"target_link_libraries",
+			"add_custom_command",
+			"add_compile_options",
+			"add_compile_definitions",
+			"add_definitions",
+			"include_directories"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 164,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 32,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 160,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 161,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 162,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 167,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 174,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 31,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 37,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 38,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 44,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 0
+			},
+			{
+				"command" : 5,
+				"file" : 0,
+				"line" : 30,
+				"parent" : 0
+			},
+			{
+				"command" : 6,
+				"file" : 0,
+				"line" : 135,
+				"parent" : 0
+			},
+			{
+				"command" : 7,
+				"file" : 0,
+				"line" : 60,
+				"parent" : 0
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g -std=gnu11 -fdiagnostics-color=always"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-mfloat-abi=hard"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-mfpu=fpv5-sp-d16"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mcpu=cortex-m7"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mthumb-interwork"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-ffunction-sections"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fdata-sections"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fno-common"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fmessage-length=0"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-Og"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-g"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_CM7"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_MATRIX_CHECK"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_ROUNDING"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "DEBUG"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "STM32H743xx"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "USE_HAL_DRIVER"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "USE_PWR_LDO_SUPPLY"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Core/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/STM32H7xx_HAL_Driver/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/RTOS2/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/vofa"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/octolinker"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/bmi088"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/dm_imu_l1"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/drv8701e"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/jc_driver"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/encoder"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/track_sensor"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/led"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/key"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/beep"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/platform/include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/platform/stm32h743"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/board/knexus_stm32h743"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/motor"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/imu"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/ctrl"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/telemetry"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/safety"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/sys"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/drive"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/grayscale"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/host_comm"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/track_nn"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/knx_test_mode"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_drv8701e"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_bmi088"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_encoder"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_drive_calib"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_bmi088_imu_est"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_grayscale_sample"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_jc2804"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_dm_imu_l1"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/mini_gimbal_test"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_jc_driver"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_standard_gimbal"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_color_track"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/config"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/util"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks/app"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks/ctrl"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/ST/ARM/DSP/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/crc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/Filter"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/kalman_filter"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/MahonyAHRS"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/PID"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/QuaternionEKF"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/Ramp"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/User_Lib"
+				}
+			],
+			"language" : "C",
+			"languageStandard" : 
+			{
+				"backtraces" : 
+				[
+					1
+				],
+				"standard" : "11"
+			},
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12,
+				13,
+				14,
+				15,
+				17,
+				18,
+				19,
+				20,
+				21,
+				22,
+				23,
+				24,
+				25,
+				26,
+				27,
+				28,
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114
+			]
+		},
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-mfloat-abi=hard"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-mfpu=fpv5-sp-d16"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mcpu=cortex-m7"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 9,
+					"fragment" : "-mthumb-interwork"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-ffunction-sections"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fdata-sections"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fno-common"
+				},
+				{
+					"backtrace" : 10,
+					"fragment" : "-fmessage-length=0"
+				},
+				{
+					"backtrace" : 11,
+					"fragment" : "-x"
+				},
+				{
+					"backtrace" : 11,
+					"fragment" : "assembler-with-cpp"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-Og"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-g"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_CM7"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_MATRIX_CHECK"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "ARM_MATH_ROUNDING"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "DEBUG"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "STM32H743xx"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "USE_HAL_DRIVER"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "USE_PWR_LDO_SUPPLY"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Core/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/STM32H7xx_HAL_Driver/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Drivers/CMSIS/RTOS2/Include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/vofa"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/octolinker"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/bmi088"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/dm_imu_l1"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/drv8701e"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/jc_driver"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/encoder"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/track_sensor"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/led"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/key"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/drv/beep"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/platform/include"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/platform/stm32h743"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/board/knexus_stm32h743"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/motor"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/imu"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/ctrl"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/telemetry"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/safety"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/sys"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/drive"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/grayscale"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/host_comm"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/modules/track_nn"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/knx_test_mode"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_drv8701e"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_bmi088"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_encoder"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_drive_calib"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_bmi088_imu_est"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_grayscale_sample"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_jc2804"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_dm_imu_l1"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/mini_gimbal_test"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_jc_driver"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_standard_gimbal"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/app/test_modes/test_color_track"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/config"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/util"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks/app"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/User/tasks/ctrl"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/ST/ARM/DSP/Inc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/crc"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/Filter"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/kalman_filter"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/MahonyAHRS"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/PID"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/QuaternionEKF"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/Ramp"
+				},
+				{
+					"backtrace" : 15,
+					"path" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/../../common/User/algorithm/User_Lib"
+				}
+			],
+			"language" : "ASM",
+			"sourceIndexes" : 
+			[
+				16
+			]
+		}
+	],
+	"id" : "knexus_st.elf::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-g",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mfloat-abi=hard",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mfpu=fpv5-sp-d16",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 3,
+				"fragment" : "-Wl,-gc-sections,--print-memory-usage,-Map=D:/User/Project/knexus_driver_module/stm32/knexus_st/cmake-build-debug/knexus_st.map",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 4,
+				"fragment" : "-mcpu=cortex-m7",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 4,
+				"fragment" : "-mthumb",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 4,
+				"fragment" : "-mthumb-interwork",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "-T",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/STM32H743IITX_FLASH.ld",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "D:\\User\\Project\\knexus_driver_module\\stm32\\knexus_st\\Middlewares\\ST\\ARM\\DSP\\Lib\\libarm_cortexM7lfsp_math.a",
+				"role" : "libraries"
+			}
+		],
+		"language" : "C"
+	},
+	"linkLibraries" : 
+	[
+		{
+			"backtrace" : 6,
+			"fragment" : "D:/User/Project/knexus_driver_module/stm32/knexus_st/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a"
+		}
+	],
+	"name" : "knexus_st.elf",
+	"nameOnDisk" : "knexus_st.elf",
+	"orderDependencies" : 
+	[
+		{
+			"backtrace" : 7,
+			"id" : "knexus_st.elf::@6890427a1f51a3e7e1df"
+		}
+	],
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12,
+				13,
+				14,
+				15,
+				17,
+				18,
+				19,
+				20,
+				21,
+				22,
+				23,
+				24,
+				25,
+				26,
+				27,
+				28,
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114
+			]
+		},
+		{
+			"name" : "",
+			"sourceIndexes" : 
+			[
+				16,
+				115
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/adc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/dma.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/fdcan.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/freertos.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/gpio.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/lptim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/main.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/spi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/stm32h7xx_hal_msp.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/stm32h7xx_hal_timebase_tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/stm32h7xx_it.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/syscalls.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/sysmem.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/system_stm32h7xx.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/usart.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Core/Startup/startup_stm32h743iitx.s",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_exti.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hsem.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_lptim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/croutine.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/event_groups.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/list.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/portable/Common/mpu_wrappers_v2.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/queue.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/tasks.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Middlewares/Third_Party/FreeRTOS/Source/timers.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/Filter/filter32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/MahonyAHRS/MahonyAHRS.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/PID/PID.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/QuaternionEKF/QuaternionEKF.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/Ramp/ramp.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/User_Lib/user_lib.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/crc/crc8_crc16.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/algorithm/kalman_filter/kalman_filter.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/knx_app.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/knx_app_superloop.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/knx_test_mode/knx_test_mode.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/mini_gimbal_test/mini_gimbal_test.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_bmi088/test_bmi088.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_bmi088_imu_est/test_bmi088_imu_est.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_color_track/test_color_track.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_dm_imu_l1/test_dm_imu_l1.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_drive_calib/test_drive_calib.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_drv8701e/test_drv8701e.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_encoder/test_encoder.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_grayscale_sample/test_grayscale_sample.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_jc2804/test_jc2804.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_jc_driver/test_jc_driver.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/app/test_modes/test_standard_gimbal/test_standard_gimbal.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/config/knx_params.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/beep/knx_beep.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/bmi088/bmi088.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/dm_imu_l1/dm_imu_l1.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/drv8701e/drv8701e.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/encoder/encoder.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/jc_driver/jc_driver.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/key/knx_key.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/key/knx_key_debug.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/led/knx_led.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/octolinker/octolinker.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/track_sensor/track_sensor.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/drv/vofa/vofa_plus.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/drive/knx_drive.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/grayscale/knx_grayscale.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/host_comm/knx_host_comm.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/imu/knx_imu.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/motor/knx_motor.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/safety/knx_safety.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/sys/knx_sys.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/telemetry/knx_telemetry.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/track_nn/track_tinycnn.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/modules/track_nn/track_tinycnn_weights.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/util/knx_filter.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "D:/User/Project/knexus_driver_module/common/User/util/knx_math.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_adc_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_can_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_encoder_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_gpio_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_port_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_pwm_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_spi_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_time_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/platform/stm32h743/knx_uart_stm32.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/board/knexus_stm32h743/knx_board.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/tasks/app/knx_app_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/tasks/ctrl/knx_ctrl_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "User/tasks/knx_tasks.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"path" : "STM32H743IITX_FLASH.ld",
+			"sourceGroupIndex" : 1
+		}
+	],
+	"type" : "EXECUTABLE"
+}

@@ -1,0 +1,153 @@
+#${templateWarning}
+# When included via add_subdirectory from the top-level CMakeLists.txt,
+# the toolchain is already configured by the parent — skip the standalone block.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(CMAKE_SYSTEM_NAME Generic)
+    set(CMAKE_SYSTEM_VERSION 1)
+    ${cmakeRequiredVersion}
+    # specify cross-compilers and tools
+    set(CMAKE_C_COMPILER arm-none-eabi-gcc)
+    set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
+    set(CMAKE_ASM_COMPILER  arm-none-eabi-gcc)
+    set(CMAKE_AR arm-none-eabi-ar)
+    set(CMAKE_OBJCOPY arm-none-eabi-objcopy)
+    set(CMAKE_OBJDUMP arm-none-eabi-objdump)
+    set(SIZE arm-none-eabi-size)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+endif()
+
+# project settings
+project(${projectName} C CXX ASM)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_STANDARD 11)
+
+# Module root: two levels up from stm32/knexus_st
+set(KNEXUS_MODULE_ROOT $${CMAKE_CURRENT_LIST_DIR}/../..)
+set(KNEXUS_COMMON_USER_DIR $${KNEXUS_MODULE_ROOT}/common/User)
+
+#Uncomment for hardware floating point
+#add_compile_definitions(ARM_MATH_CM4;ARM_MATH_MATRIX_CHECK;ARM_MATH_ROUNDING)
+#add_compile_options(-mfloat-abi=hard -mfpu=fpv4-sp-d16)
+#add_link_options(-mfloat-abi=hard -mfpu=fpv4-sp-d16)
+
+#Uncomment for software floating point
+#add_compile_options(-mfloat-abi=soft)
+
+add_compile_options(-mcpu=${mcpu} -mthumb -mthumb-interwork)
+add_compile_options(-ffunction-sections -fdata-sections -fno-common -fmessage-length=0)
+
+# uncomment to mitigate c++17 absolute addresses warnings
+#set(CMAKE_CXX_FLAGS "$${CMAKE_CXX_FLAGS} -Wno-register")
+
+# Enable assembler files preprocessing
+add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-x$<SEMICOLON>assembler-with-cpp>)
+
+if ("$${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+    message(STATUS "Maximum optimization for speed")
+    add_compile_options(-Ofast)
+elseif ("$${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+    message(STATUS "Maximum optimization for speed, debug info included")
+    add_compile_options(-Ofast -g)
+elseif ("$${CMAKE_BUILD_TYPE}" STREQUAL "MinSizeRel")
+    message(STATUS "Maximum optimization for size")
+    add_compile_options(-Os)
+else ()
+    message(STATUS "Minimal optimization, debug info included")
+    add_compile_options(-Og -g)
+endif ()
+
+include_directories(${includes})
+
+# ---- knexus custom include paths (do not remove) ----
+include_directories(
+    # drv (common)
+    $${KNEXUS_COMMON_USER_DIR}/drv/vofa
+    $${KNEXUS_COMMON_USER_DIR}/drv/octolinker
+    $${KNEXUS_COMMON_USER_DIR}/drv/bmi088
+    $${KNEXUS_COMMON_USER_DIR}/drv/drv8701e
+    $${KNEXUS_COMMON_USER_DIR}/drv/encoder
+    $${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
+    $${KNEXUS_COMMON_USER_DIR}/drv/led
+    $${KNEXUS_COMMON_USER_DIR}/drv/key
+    $${KNEXUS_COMMON_USER_DIR}/drv/beep
+    # platform: shared headers (common) + STM32 implementation
+    $${KNEXUS_COMMON_USER_DIR}/platform/include
+    User/platform/stm32h743
+    # board: STM32-specific
+    User/board/knexus_stm32h743
+    # modules (common)
+    $${KNEXUS_COMMON_USER_DIR}/modules/motor
+    $${KNEXUS_COMMON_USER_DIR}/modules/imu
+    $${KNEXUS_COMMON_USER_DIR}/modules/ctrl
+    $${KNEXUS_COMMON_USER_DIR}/modules/telemetry
+    $${KNEXUS_COMMON_USER_DIR}/modules/safety
+    $${KNEXUS_COMMON_USER_DIR}/modules/sys
+    $${KNEXUS_COMMON_USER_DIR}/modules/drive
+    $${KNEXUS_COMMON_USER_DIR}/modules/grayscale
+    $${KNEXUS_COMMON_USER_DIR}/modules/track_nn
+    # app (common)
+    $${KNEXUS_COMMON_USER_DIR}/app
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/knx_test_mode
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_drv8701e
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_bmi088
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_encoder
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_drive_calib
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_bmi088_imu_est
+    $${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_grayscale_sample
+    # config (common)
+    $${KNEXUS_COMMON_USER_DIR}/config
+    # util (common)
+    $${KNEXUS_COMMON_USER_DIR}/util
+    # tasks: STM32/CMSIS-RTOS task adapter
+    User/tasks
+    User/tasks/app
+    User/tasks/ctrl
+    # algorithm (common)
+    $${KNEXUS_COMMON_USER_DIR}/algorithm
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/crc
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/Filter
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/kalman_filter
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/MahonyAHRS
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/PID
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/QuaternionEKF
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/Ramp
+    $${KNEXUS_COMMON_USER_DIR}/algorithm/User_Lib
+)
+
+add_definitions(${defines})
+
+file(GLOB_RECURSE COMMON_SOURCES
+    "$${KNEXUS_COMMON_USER_DIR}/*.c" "$${KNEXUS_COMMON_USER_DIR}/*.s" "$${KNEXUS_COMMON_USER_DIR}/*.S"
+)
+file(GLOB_RECURSE STM32_PLATFORM_SOURCES
+    "User/platform/stm32h743/*.c" "User/platform/stm32h743/*.s" "User/platform/stm32h743/*.S"
+)
+file(GLOB_RECURSE STM32_BOARD_SOURCES
+    "User/board/knexus_stm32h743/*.c" "User/board/knexus_stm32h743/*.s" "User/board/knexus_stm32h743/*.S"
+)
+file(GLOB_RECURSE STM32_TASK_SOURCES
+    "User/tasks/*.c" "User/tasks/*.s" "User/tasks/*.S"
+)
+
+file(GLOB_RECURSE SOURCES ${sources})
+# Exclude non-source files (e.g. .md) that GLOB_RECURSE may pick up from User/
+list(FILTER SOURCES EXCLUDE REGEX "\\.md$")
+list(FILTER SOURCES EXCLUDE REGEX "/User/(algorithm|app|config|drv|modules|platform|board|tasks|util)/")
+list(APPEND SOURCES $${COMMON_SOURCES} $${STM32_PLATFORM_SOURCES} $${STM32_BOARD_SOURCES} $${STM32_TASK_SOURCES})
+
+set(LINKER_SCRIPT $${CMAKE_CURRENT_LIST_DIR}/${linkerScript})
+
+add_link_options(-Wl,-gc-sections,--print-memory-usage,-Map=$${PROJECT_BINARY_DIR}/$${PROJECT_NAME}.map)
+add_link_options(-mcpu=${mcpu} -mthumb -mthumb-interwork)
+add_link_options(-T $${LINKER_SCRIPT})
+
+add_executable($${PROJECT_NAME}.elf $${SOURCES} $${LINKER_SCRIPT})
+
+set(HEX_FILE $${PROJECT_BINARY_DIR}/$${PROJECT_NAME}.hex)
+set(BIN_FILE $${PROJECT_BINARY_DIR}/$${PROJECT_NAME}.bin)
+
+add_custom_command(TARGET $${PROJECT_NAME}.elf POST_BUILD
+        COMMAND $${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:$${PROJECT_NAME}.elf> $${HEX_FILE}
+        COMMAND $${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:$${PROJECT_NAME}.elf> $${BIN_FILE}
+        COMMENT "Building $${HEX_FILE}
+Building $${BIN_FILE}")

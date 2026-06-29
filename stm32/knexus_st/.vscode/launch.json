@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "STM32_Debug_OpenOCD",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceRoot}/build/knexus_st.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "servertype": "openocd",
+            "device": "STM32H743IITx",
+            "interface": "swd",
+            "openOCDPath": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+            "serverArgs": [
+                "-s", "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts"
+            ],
+            "configFiles": [
+                "D:/User/Project/CLION+CUBEMX/cfj/rm_dap_wireless.cfg"
+            ],
+            "gdbPath": "D:/applications/armgcc/ARM_GCC/arm/bin/arm-none-eabi-gdb.exe"
+        }
+    ]
+}

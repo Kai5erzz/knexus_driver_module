@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Flash Program",
+            "type": "shell",
+            "command": "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe -s D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts -f D:/User/Project/CLION+CUBEMX/cfj/rm_dap_wireless.cfg -c \"program D:/User/Project/knexus_driver_module/stm32/knexus_st/build/knexus_st.elf verify reset exit\"",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/c"]
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        }
+    ]
+}
