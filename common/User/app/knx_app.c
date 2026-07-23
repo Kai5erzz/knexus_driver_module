@@ -1,5 +1,9 @@
 #include "knx_app.h"
+#include "knx_project_config.h"
 #include "knx_board.h"
+#if KNX_APP_CONTEST_2026
+#include "knx26_app.h"
+#else
 #include "knx_blackbox.h"
 #include "knx_drive.h"
 #include "knx_gimbal_ctrl.h"
@@ -15,11 +19,18 @@
 #include "knx_test_mode.h"
 #include "knx_time.h"
 #include "knx_vision.h"
+#endif
 
 static volatile bool s_app_initialized = false;
 
 void knx_app_init(void)
 {
+#if KNX_APP_CONTEST_2026
+    if (knx_board_init() == KNX_OK && knx26_app_init() == KNX_OK) {
+        knx_board_post_init();
+        s_app_initialized = true;
+    }
+#else
     knx_health_init();
     knx_blackbox_init();
     knx_board_init();
@@ -43,10 +54,14 @@ void knx_app_init(void)
 
     knx_board_post_init();
     s_app_initialized = true;
+#endif
 }
 
 void knx_app_loop(void)
 {
+#if KNX_APP_CONTEST_2026
+    knx26_user_app_update();
+#else
     static uint32_t sys_tick = 0;
     uint32_t now = knx_millis();
 
@@ -56,6 +71,7 @@ void knx_app_loop(void)
     }
 
     knx_test_mode_loop();
+#endif
 }
 
 bool knx_app_is_initialized(void)

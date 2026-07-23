@@ -193,9 +193,11 @@ static knx_status_t knx_safety_update_drive(void)
             faults |= KNX_FAULT_TILT;
         }
 
+#if !KNX_APP_CONTEST_2026
         if (knx_health_age_ms(KNX_HEALTH_SOURCE_HOST_COMM) > KNX_SAFETY_HOST_COMM_TIMEOUT_MS) {
             faults |= KNX_FAULT_HOST_COMM_LOST;
         }
+#endif
     }
     if (!strict_check) {
         warnings |= KNX_WARN_STARTUP;

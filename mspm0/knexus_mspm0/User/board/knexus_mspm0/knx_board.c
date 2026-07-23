@@ -1,4 +1,7 @@
 #include "knx_board.h"
+#include "knx_project_config.h"
+#include "bmi088.h"
+#include "encoder.h"
 #include "knx_beep.h"
 #include "knx_key.h"
 #include "knx_led.h"
@@ -126,6 +129,20 @@ knx_status_t knx_board_init(void)
 
     Octolinker_Init(&s_octolinker, &s_debug_uart);
 
+#if KNX_APP_CONTEST_2026
+    /* Contest runtime expects board_init() to complete all physical bindings,
+     * matching the STM32 board contract. Module control loops start later. */
+    DRV8701E_AttachPorts(&s_drv_left, &s_drv_right);
+    DRV8701E_Init();
+    (void)Encoder_AttachPorts(&s_encoder_left, &s_encoder_right);
+    (void)Encoder_Init();
+    TrackSensor_AttachPorts(&s_track_sensor);
+    TrackSensor_Init();
+    (void)knx_spi_init(&s_bmi088_accel_spi);
+    (void)knx_spi_init(&s_bmi088_gyro_spi);
+    BMI088_Init(&s_bmi088_accel_spi, &s_bmi088_gyro_spi);
+#endif
+
     return KNX_OK;
 }
 
@@ -148,6 +165,7 @@ const drv8701e_port_t *knx_board_get_drv_right_port(void) { return &s_drv_right;
 const knx_spi_t *knx_board_get_bmi088_accel_spi(void) { return &s_bmi088_accel_spi; }
 const knx_spi_t *knx_board_get_bmi088_gyro_spi(void)  { return &s_bmi088_gyro_spi; }
 knx_can_t       *knx_board_get_can(void)              { return &s_can; }
+knx_can_t       *knx_board_get_can_bus(uint8_t index) { return (index == 0U) ? &s_can : NULL; }
 const track_sensor_port_t *knx_board_get_track_sensor_port(void) { return &s_track_sensor; }
 
 /* ── STM32 API parity stubs — MSPM0 has a single MCAN instance ── */

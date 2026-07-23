@@ -6,6 +6,10 @@ set(MSPM0_SDK_DIR "D:/application_restore/ti/mspm0_sdk/mspm0_sdk_2_05_00_05"
 
 set(DEVICE_FAMILY "mspm0g350x")
 
+if(KNEXUS_APP STREQUAL "contest_2026")
+    add_compile_definitions(KNX_BUILD_CONTEST_2026=1)
+endif()
+
 # FreeRTOS local copy.
 set(FREERTOS_DIR ${CMAKE_CURRENT_LIST_DIR}/Middlewares/Third_Party/FreeRTOS/Source)
 
@@ -49,6 +53,7 @@ set(COMMON_DRIVER_SOURCES
 set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/config/knx_params.c
     ${KNEXUS_COMMON_USER_DIR}/util/knx_control.c
+    ${KNEXUS_COMMON_USER_DIR}/util/knx_math.c
     ${KNEXUS_COMMON_USER_DIR}/modules/param/knx_param.c
     ${KNEXUS_COMMON_USER_DIR}/modules/sys/knx_sys.c
     ${KNEXUS_COMMON_USER_DIR}/modules/blackbox/knx_blackbox.c
@@ -59,6 +64,15 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/modules/imu/knx_imu.c
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale/knx_grayscale.c
     ${KNEXUS_COMMON_USER_DIR}/modules/telemetry/knx_telemetry.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/host_comm/knx_host_comm.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/safety/knx_safety.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/chassis/knx_chassis.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/can_bus/knx_can_bus.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/track/knx_track.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/intersection/knx_intersection.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/comm/knx_comm.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx26_app.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx26_user.c
 )
 
 # Common algorithm sources.
@@ -68,12 +82,16 @@ set(COMMON_ALGO_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/algorithm/Ramp/ramp.c
     ${KNEXUS_COMMON_USER_DIR}/algorithm/kalman_filter/kalman_filter.c
     ${KNEXUS_COMMON_USER_DIR}/algorithm/QuaternionEKF/QuaternionEKF.c
+    ${KNEXUS_COMMON_USER_DIR}/algorithm/crc/crc8_crc16.c
 )
 
 # Common test mode sources.
 set(COMMON_TEST_MODE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_drv8701e/test_drv8701e.c
 )
+if(KNEXUS_APP STREQUAL "contest_2026")
+    set(COMMON_TEST_MODE_SOURCES)
+endif()
 
 file(GLOB_RECURSE MSPM0_BOARD_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/User/board/*.c"
@@ -147,6 +165,7 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
     ${KNEXUS_COMMON_USER_DIR}/util
+    ${KNEXUS_COMMON_USER_DIR}/algorithm/crc
     ${KNEXUS_COMMON_USER_DIR}/algorithm/PID
     ${KNEXUS_COMMON_USER_DIR}/algorithm/Ramp
     ${KNEXUS_COMMON_USER_DIR}/algorithm/kalman_filter
@@ -161,6 +180,14 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/modules/imu
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale
     ${KNEXUS_COMMON_USER_DIR}/modules/telemetry
+    ${KNEXUS_COMMON_USER_DIR}/modules/host_comm
+    ${KNEXUS_COMMON_USER_DIR}/modules/safety
+    ${KNEXUS_COMMON_USER_DIR}/modules/chassis
+    ${KNEXUS_COMMON_USER_DIR}/modules/can_bus
+    ${KNEXUS_COMMON_USER_DIR}/modules/track
+    ${KNEXUS_COMMON_USER_DIR}/modules/intersection
+    ${KNEXUS_COMMON_USER_DIR}/modules/comm
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_drv8701e
 )
 

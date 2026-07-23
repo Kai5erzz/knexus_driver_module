@@ -27,6 +27,10 @@ Octolinker_Instance_t *knx_board_get_octolinker(void);
 const knx_encoder_port_t *knx_board_get_encoder_left(void);
 const knx_encoder_port_t *knx_board_get_encoder_right(void);
 
+/* Generic CAN ownership used by the contest runtime. index 0=FDCAN1,
+ * index 1=FDCAN2. Returns NULL when a bus is unavailable. */
+knx_can_t *knx_board_get_can_bus(uint8_t index);
+
 /* JC motors are mounted on FDCAN2. */
 knx_can_t *knx_board_get_jc_can(void);
 

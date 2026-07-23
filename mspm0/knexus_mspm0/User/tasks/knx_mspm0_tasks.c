@@ -7,6 +7,10 @@
 #include "knx_debug_config.h"
 #include "knx_board.h"
 #include "knx_mspm0_app.h"
+#include "knx_project_config.h"
+#if KNX_APP_CONTEST_2026
+#include "knx26_mspm0_tasks.h"
+#endif
 
 #if (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_DRV8701E)
 #include "test_drv8701e.h"
@@ -131,6 +135,9 @@ static void test_task(void *pvParameters)
 
 knx_status_t knx_mspm0_tasks_init(void)
 {
+#if KNX_APP_CONTEST_2026
+    return knx26_mspm0_tasks_init();
+#else
     BaseType_t ok;
 
     ok = xTaskCreate(heartbeat_task, "heartbeat", HEARTBEAT_STACK_SIZE,
@@ -160,4 +167,5 @@ knx_status_t knx_mspm0_tasks_init(void)
 #endif
 
     return KNX_OK;
+#endif
 }

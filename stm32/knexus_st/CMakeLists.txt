@@ -26,6 +26,10 @@ set(CMAKE_C_STANDARD 11)
 set(KNEXUS_MODULE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(KNEXUS_COMMON_USER_DIR ${KNEXUS_MODULE_ROOT}/common/User)
 
+if(KNEXUS_APP STREQUAL "contest_2026")
+    add_compile_definitions(KNX_BUILD_CONTEST_2026=1)
+endif()
+
 # STM32H743 Cortex-M7 single-precision FPU.
 add_compile_definitions(ARM_MATH_CM7;ARM_MATH_MATRIX_CHECK;ARM_MATH_ROUNDING)
 add_compile_options(-mfloat-abi=hard -mfpu=fpv5-sp-d16)
@@ -101,6 +105,11 @@ include_directories(
     ${KNEXUS_COMMON_USER_DIR}/modules/can_router
     ${KNEXUS_COMMON_USER_DIR}/modules/track_nn
     ${KNEXUS_COMMON_USER_DIR}/modules/vision
+    ${KNEXUS_COMMON_USER_DIR}/modules/chassis
+    ${KNEXUS_COMMON_USER_DIR}/modules/can_bus
+    ${KNEXUS_COMMON_USER_DIR}/modules/track
+    ${KNEXUS_COMMON_USER_DIR}/modules/intersection
+    ${KNEXUS_COMMON_USER_DIR}/modules/comm
     # app (common)
     ${KNEXUS_COMMON_USER_DIR}/app
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/knx_test_mode
@@ -116,6 +125,8 @@ include_directories(
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_jc_driver
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_standard_gimbal
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_color_track
+    ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_stm32_board_bringup
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026
     # config (common)
     ${KNEXUS_COMMON_USER_DIR}/config
     # util (common)
@@ -128,6 +139,7 @@ include_directories(
     User/tasks/safety
     User/tasks/telemetry
     User/tasks/ui
+    User/tasks/contest_2026
     # CMSIS-DSP
     Middlewares/ST/ARM/DSP/Inc
     # algorithm (common)
@@ -148,6 +160,14 @@ add_definitions(-DDEBUG -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H743xx)
 file(GLOB_RECURSE COMMON_SOURCES
     "${KNEXUS_COMMON_USER_DIR}/*.c" "${KNEXUS_COMMON_USER_DIR}/*.s" "${KNEXUS_COMMON_USER_DIR}/*.S"
 )
+if(KNEXUS_APP STREQUAL "contest_2026")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/gimbal/")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/vision/")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/drv/jc_driver/")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/drv/dm_imu_l1/")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/test_modes/")
+    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/knx_app_superloop\\.c$")
+endif()
 file(GLOB_RECURSE STM32_PLATFORM_SOURCES
     "User/platform/stm32h743/*.c" "User/platform/stm32h743/*.s" "User/platform/stm32h743/*.S"
 )
@@ -157,6 +177,9 @@ file(GLOB_RECURSE STM32_BOARD_SOURCES
 file(GLOB_RECURSE STM32_TASK_SOURCES
     "User/tasks/*.c" "User/tasks/*.s" "User/tasks/*.S"
 )
+if(KNEXUS_APP STREQUAL "contest_2026")
+    list(FILTER STM32_TASK_SOURCES INCLUDE REGEX "User/tasks/(knx_tasks\\.c|contest_2026/)")
+endif()
 
 file(GLOB_RECURSE SOURCES
     "Core/*.c" "Core/*.s" "Core/*.S"

@@ -30,7 +30,7 @@ static void knx_ctrl_task_entry(void *argument)
     uint32_t imu_div = 0U;
 
     for (;;) {
-#if (KNX_MODULE_GIMBAL_EN)
+#if (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE) && (KNX_MODULE_GIMBAL_EN)
         if (knx_safety_get_level() == KNX_SAFETY_LEVEL_FAULT) {
             knx_gimbal_ctrl_stop();
         } else {

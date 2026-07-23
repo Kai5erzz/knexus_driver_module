@@ -26,12 +26,17 @@
 #define KNX_ACTIVE_TEST_MODE_JC_DRIVER 10
 #define KNX_ACTIVE_TEST_MODE_STANDARD_GIMBAL 11
 #define KNX_ACTIVE_TEST_MODE_COLOR_TRACK 12
+#define KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP 13
 
 /* Set to one of the above to activate a test mode at boot */
-#ifdef KNX_TARGET_MSPM0
+#if defined(KNX_BUILD_CONTEST_2026)
+#define KNX_ACTIVE_TEST_MODE  KNX_ACTIVE_TEST_MODE_NONE
+#elif defined(KNX_TARGET_MSPM0)
 #define KNX_ACTIVE_TEST_MODE  KNX_ACTIVE_TEST_MODE_NONE
 #else
-#define KNX_ACTIVE_TEST_MODE  KNX_ACTIVE_TEST_MODE_NONE
+/* New-board acceptance test: all motor outputs remain stopped until KEY0
+ * has been held for one second. KEY1 immediately stops the motors. */
+#define KNX_ACTIVE_TEST_MODE  KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP
 #endif
 
 #endif /* KNX_DEBUG_CONFIG_H */

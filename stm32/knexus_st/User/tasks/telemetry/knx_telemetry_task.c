@@ -91,9 +91,10 @@ static void knx_telemetry_task_entry(void *argument)
     uint32_t next_wake = osKernelGetTickCount();
 
     for (;;) {
-#if (KNX_MODULE_GIMBAL_EN)
+#if (KNX_MODULE_GIMBAL_EN) && \
+    (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE)
         knx_telemetry_task_send_compact_gimbal(octo);
-#else
+#elif (KNX_ACTIVE_TEST_MODE != KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP)
         (void)knx_telemetry_update();
         knx_key_debug_octo(octo);
         knx_grayscale_debug_octo(octo);

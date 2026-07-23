@@ -18,6 +18,7 @@ typedef enum {
     KNX_TEST_MODE_JC_DRIVER = 10,
     KNX_TEST_MODE_STANDARD_GIMBAL = 11,
     KNX_TEST_MODE_COLOR_TRACK = 12,
+    KNX_TEST_MODE_STM32_BOARD_BRINGUP = 13,
 } knx_test_mode_t;
 
 /* Use void* to avoid pulling octolinker.h into the dispatcher header.

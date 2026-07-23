@@ -1,6 +1,7 @@
 /* Board implementation for knexus_stm32h743 */
 #include "knx_board.h"
 #include "knx_board_config.h"
+#include "knx_project_config.h"
 #include "stm32h7xx_hal.h"
 #include "drv8701e.h"
 #include "bmi088.h"
@@ -11,9 +12,11 @@
 #include "knx_key.h"
 #include "knx_beep.h"
 #include "knx_ringbuf.h"
+#if KNX_MODULE_GIMBAL_EN
 #include "knx_can_router.h"
 #include "jc_driver.h"
 #include "dm_imu_l1.h"
+#endif
 #include "tim.h"
 #include "lptim.h"
 #include "adc.h"
@@ -70,14 +73,20 @@ static volatile uint32_t board_host_uart_start_status;
 static uint8_t board_host_rx_ring[BOARD_HOST_RX_RING_SIZE];
 static knx_ringbuf_t board_host_rx_rb;
 
-/* JC motors and DM-IMU-L1 share FDCAN2. */
-static knx_can_t board_jc_can = {
+static knx_can_t board_can1 = {
+    .handle = &hfdcan1,
+};
+static knx_can_t board_can2 = {
     .handle = &hfdcan2,
 };
+#define board_jc_can board_can2
+
+#if KNX_MODULE_GIMBAL_EN
 static knx_can_router_t board_gimbal_can_router;
 
 /* Kept as a semantic alias for callers that request the IMU CAN port. */
 #define board_dm_imu_l1_can board_jc_can
+#endif
 
 /* ---- DRV8701E platform-backed port definitions ----
  *
@@ -260,6 +269,7 @@ static void knx_board_recover_fdcan1_if_used(void)
     knx_board_force_fdcan1_pins();
 }
 
+#if KNX_MODULE_GIMBAL_EN
 static void knx_board_jc_can_route(uint32_t std_id,
                                    const uint8_t *data,
                                    uint8_t len,
@@ -277,6 +287,7 @@ static void knx_board_dm_imu_l1_can_route(uint32_t std_id,
     (void)user;
     DM_IMU_L1_UpdateData(std_id, data, len);
 }
+#endif
 
 knx_status_t knx_board_init(void)
 {
@@ -290,7 +301,8 @@ knx_status_t knx_board_init(void)
                            BOARD_HOST_RX_RING_SIZE);
     knx_board_host_comm_start_rx();
 
-    /* Init shared FDCAN2 transport for JC motors and DM-IMU-L1. */
+    /* Legacy gimbal ownership is excluded from the contest profile. */
+#if KNX_MODULE_GIMBAL_EN
     knx_board_recover_fdcan1_if_used();
     JC_AttachCAN(&board_jc_can);
     DM_IMU_L1_AttachCAN(&board_dm_imu_l1_can, DM_IMU_L1_DEFAULT_CAN_ID);
@@ -311,6 +323,7 @@ knx_status_t knx_board_init(void)
     (void)knx_can_router_start(&board_gimbal_can_router);
     (void)JC_InitExternalRx();
     (void)DM_IMU_L1_InitExternalRx();
+#endif
 
     /* Init sensors */
     BMI088_AttachHeater(&bmi088_heater_pwm);
@@ -379,14 +392,21 @@ const knx_encoder_port_t *knx_board_get_encoder_right(void)
     return &enc_right_port;
 }
 
+knx_can_t *knx_board_get_can_bus(uint8_t index)
+{
+    if (index == 0U) return &board_can1;
+    if (index == 1U) return &board_can2;
+    return NULL;
+}
+
 knx_can_t *knx_board_get_jc_can(void)
 {
-    return &board_jc_can;
+    return &board_can2;
 }
 
 knx_can_t *knx_board_get_dm_imu_l1_can(void)
 {
-    return &board_dm_imu_l1_can;
+    return &board_can2;
 }
 
 knx_host_comm_t *knx_board_get_host_comm(void)
@@ -460,7 +480,6 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         knx_board_host_comm_start_rx();
     }
 }
-
 
 
 

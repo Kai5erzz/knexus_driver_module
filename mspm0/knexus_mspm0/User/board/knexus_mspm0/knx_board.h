@@ -24,6 +24,7 @@ const drv8701e_port_t    *knx_board_get_drv_right_port(void);
 const knx_spi_t            *knx_board_get_bmi088_accel_spi(void);
 const knx_spi_t            *knx_board_get_bmi088_gyro_spi(void);
 knx_can_t                  *knx_board_get_can(void);
+knx_can_t                  *knx_board_get_can_bus(uint8_t index);
 const track_sensor_port_t  *knx_board_get_track_sensor_port(void);
 
 /* ── CAN getters aligned with STM32 board API (parity stubs) ──

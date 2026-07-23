@@ -14,6 +14,7 @@
 #include "test_jc_driver.h"
 #include "test_standard_gimbal.h"
 #include "test_color_track.h"
+#include "test_stm32_board_bringup.h"
 
 #define ACTIVE_MODE  KNX_ACTIVE_TEST_MODE
 
@@ -43,6 +44,8 @@ void knx_test_mode_init(void *octo)
     test_standard_gimbal_init(octo);
 #elif (ACTIVE_MODE == KNX_ACTIVE_TEST_MODE_COLOR_TRACK)
     test_color_track_init(octo);
+#elif (ACTIVE_MODE == KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP)
+    test_stm32_board_bringup_init(octo);
 #else
     (void)octo;
 #endif
@@ -74,5 +77,7 @@ void knx_test_mode_loop(void)
     test_standard_gimbal_loop();
 #elif (ACTIVE_MODE == KNX_ACTIVE_TEST_MODE_COLOR_TRACK)
     test_color_track_loop();
+#elif (ACTIVE_MODE == KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP)
+    test_stm32_board_bringup_loop();
 #endif
 }
