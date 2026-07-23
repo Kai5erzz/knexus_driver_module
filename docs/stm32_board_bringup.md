@@ -1,52 +1,61 @@
-# STM32 New-Baseboard Bring-Up Test
+# STM32 新底板硬件验收测试
 
-The STM32 build currently selects `KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP`.
-This is a board-acceptance firmware image, not the normal gimbal application.
+STM32 当前选择的测试模式为 `KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP`。
+该固件仅用于新底板硬件验收，不是正常的底盘或云台应用固件。
 
-## Safety and controls
+## 安全操作与按键
 
-- Motor outputs are stopped after boot.
-- Hold **KEY0** for one second to arm or disarm the motor test.
-- Press **KEY1** to stop and disarm the motors immediately.
-- The default maximum duty is 30%; it is capped in firmware at 30%.
-- When armed, the forward-only test steps through left 10/20/30%, right
-  10/20/30%, then both 20% and 30%. Each segment lasts two seconds.
+- 上电后所有电机输出保持关闭。
+- 长按 **KEY0** 一秒，使能或关闭电机测试。
+- 按下 **KEY1**，立即停止电机并解除使能。
+- 电机默认最大占空比为 30%，固件内部上限也是 30%。
+- 使能后按正方向依次测试：左电机 10%/20%/30%，右电机
+  10%/20%/30%，最后双电机 20%/30%。每档持续两秒。
 
-## CAN analyser test
+首次测试必须架空车轮，并准备随时按下 KEY1。
 
-Both interfaces use classic CAN, 1 Mbps, 8-byte frames every 100 ms.
+## CAN 分析仪测试
 
-| Bus | Pins | Standard ID | Payload |
+两路接口均使用经典 CAN，波特率为 1 Mbps，每 100 ms 发送一帧 8 字节数据。
+
+| 总线 | 引脚 | 标准帧 ID | 数据载荷 |
 | --- | --- | ---: | --- |
 | FDCAN1 | PA11 / PA12 | `0x701` | `4B 4E 58 42 seq_lo seq_hi armed 01` |
 | FDCAN2 | PB12 / PB13 | `0x702` | `4B 4E 58 42 seq_lo seq_hi armed 02` |
 
-`4B 4E 58 42` is ASCII `KNXB`. A CAN analyser should provide a correctly
-terminated bus and acknowledge frames; otherwise the TX FIFO will eventually
-fill and the failure counters will rise.
+`4B 4E 58 42` 是 ASCII 字符串 `KNXB`。CAN 分析仪应提供正确的终端电阻并
+对数据帧进行应答；否则发送 FIFO 最终会占满，OctoLink 中的发送失败计数会增加。
 
-## OctoLink diagnostics
+## OctoLink 调试变量
 
-The existing BMI088 driver publishes IDs `20..25`:
+BMI088 驱动使用变量 ID `20..25`：
 
-| ID | Value |
+| ID | 含义 |
 | ---: | --- |
-| 20..22 | Roll, pitch, yaw |
-| 23 | BMI088 temperature (C) |
-| 24 | Heater target temperature (C) |
-| 25 | Heater PWM duty |
+| 20..22 | 横滚角、俯仰角、航向角 |
+| 23 | BMI088 温度，单位 ℃ |
+| 24 | 加热目标温度，单位 ℃ |
+| 25 | 加热 PWM 占空比 |
 
-The board test publishes these IDs every 100 ms:
+底板测试每 100 ms 输出变量 ID `600..619`：
 
-| ID | Value |
+| ID | 含义 |
 | ---: | --- |
-| 600 | Uptime (ms) |
-| 601 | Motor armed |
-| 602..604 | Left duty, right duty, configured maximum duty |
-| 605..606 | KEY0 / KEY1 pressed |
-| 607..608 | LED1 / LED2 state |
-| 609..611 | FDCAN1 last status, TX OK count, TX failure count |
-| 612..614 | FDCAN2 last status, TX OK count, TX failure count |
-| 615..617 | BMI088 accelerometer OK, gyroscope OK, frame count |
-| 618 | CAN sequence number |
-| 619 | BMI088 temperature (C), duplicated for the test dashboard |
+| 600 | 系统运行时间，单位 ms |
+| 601 | 电机是否已使能 |
+| 602..604 | 左电机占空比、右电机占空比、最大占空比 |
+| 605..606 | KEY0、KEY1 按下状态 |
+| 607..608 | LED1、LED2 状态 |
+| 609..611 | FDCAN1 最近状态、发送成功数、发送失败数 |
+| 612..614 | FDCAN2 最近状态、发送成功数、发送失败数 |
+| 615..617 | BMI088 加速度计状态、陀螺仪状态、采样帧数 |
+| 618 | CAN 发送序号 |
+| 619 | BMI088 温度，供底板测试面板直接使用 |
+
+## 通过标准
+
+- LED0 持续闪烁，任务调度不中断。
+- BMI088 加速度计与陀螺仪状态均为正常，温度和加热占空比变化合理。
+- CAN 分析仪能分别收到 `0x701` 和 `0x702`。
+- KEY0、KEY1 状态与实际按键一致，蜂鸣器和 LED 均能正常动作。
+- 左右电机按规定顺序变速，按下 KEY1 后立即停止。
