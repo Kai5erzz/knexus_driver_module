@@ -13,6 +13,7 @@
 #include "adc.h"
 #include "dma.h"
 #include "fdcan.h"
+#include "i2c.h"
 #include "lptim.h"
 #include "spi.h"
 #include "tim.h"
@@ -104,6 +105,7 @@ int main(void)
   MX_ADC2_Init();
   MX_FDCAN1_Init();
   MX_FDCAN2_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   /* Driver inits moved to knx_app_init() via board/app layers */
   /* USER CODE END 2 */

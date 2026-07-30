@@ -29,21 +29,36 @@ knx_status_t knx_adc_read_raw(const knx_adc_channel_t *ch, uint32_t *raw)
 
     ADC12_Regs *adc = (ADC12_Regs *)ch->adc;
 
-    /* Ensure conversions are enabled, then trigger a single conversion. */
+    /* A previous timeout can leave SC asserted. Always force a clean
+     * software-trigger edge before starting the next MUX channel. */
+    DL_ADC12_stopConversion(adc);
+
+    /* Wait for MEM0's result flag, rather than polling BUSY.  BUSY can still
+     * be low immediately after the software trigger and would expose a stale
+     * reset value (typically zero). */
     DL_ADC12_enableConversions(adc);
+    DL_ADC12_clearInterruptStatus(
+        adc, DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED);
     DL_ADC12_startConversion(adc);
 
     /* Poll for completion with timeout. */
-    uint32_t start    = knx_millis();
-    uint32_t deadline = start + ch->timeout_ms;
+    uint32_t start = knx_millis();
 
-    while (DL_ADC12_getStatus(adc) & DL_ADC12_STATUS_CONVERSION_ACTIVE) {
-        if (knx_millis() >= deadline) {
+    while ((DL_ADC12_getRawInterruptStatus(
+                adc, DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED) &
+            DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED) == 0U) {
+        if ((uint32_t)(knx_millis() - start) >= ch->timeout_ms) {
+            DL_ADC12_stopConversion(adc);
+            DL_ADC12_clearInterruptStatus(
+                adc, DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED);
             return KNX_TIMEOUT;
         }
     }
 
     *raw = (uint32_t)DL_ADC12_getMemResult(adc, DL_ADC12_MEM_IDX_0);
+    DL_ADC12_clearInterruptStatus(
+        adc, DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED);
+    DL_ADC12_stopConversion(adc);
 
     return KNX_OK;
 }

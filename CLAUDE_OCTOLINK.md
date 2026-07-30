@@ -1,4 +1,4 @@
-# OctoLink MCP Integration
+﻿# OctoLink MCP Integration
 
 This project is configured to use OctoLink MCP for embedded target debugging.
 
@@ -7,18 +7,18 @@ This project is configured to use OctoLink MCP for embedded target debugging.
 1. Start the **OctoLink GUI** application.
 2. Open **Agent Bridge** (sidebar icon) and click **Start MCP Server**.
 3. The MCP server listens on `127.0.0.1:48731`.
-4. The proxy binary is at: `//?/D:/User/Project/OctoLink/ver_000/octolink/src-tauri/target/debug/resources/octolink-mcp-proxy.exe`
+4. The proxy binary is at: `D:\User\Project\OctoLink\ver_000\octolink\src-tauri\target\debug\octolink-mcp-proxy.exe`
 
 ## Using with Claude Code
 
-Claude Code is already configured via `.mcp.json` — the MCP server
+Claude Code is already configured via `.mcp.json` 鈥?the MCP server
 `octolink` should appear in your available tools automatically.
 
 If you want to start Claude with the standalone config instead, run:
 
-````powershell
+```powershell
 claude --mcp-config .\claude-octolink-mcp.json
-````
+```
 
 ### Recommended Prompts
 
@@ -38,5 +38,29 @@ claude --mcp-config .\claude-octolink-mcp.json
 
 The full OctoLink MCP skill is available at:
 
-- `.claude/skills/octolink-mcp/SKILL.md` (installed when `installSkill` is enabled)
+- `.claude/skills/octolink-mcp/SKILL.md` (installed when `-InstallSkill` is used)
 - `docs/octolink-mcp-skill.md` (human-readable copy)
+
+## Manual MCP Config Reference
+
+If you need to configure another MCP client, use the config in `claude-octolink-mcp.json`:
+
+```json
+{
+    "mcpServers":  {
+                       "octolink":  {
+                                        "args":  [
+                                                     "--host",
+                                                     "127.0.0.1",
+                                                     "--port",
+                                                     "48731"
+                                                 ],
+                                        "env":  {
+
+                                                },
+                                        "command":  "D:\\User\\Project\\OctoLink\\ver_000\\octolink\\src-tauri\\target\\debug\\octolink-mcp-proxy.exe",
+                                        "type":  "stdio"
+                                    }
+                   }
+}
+```

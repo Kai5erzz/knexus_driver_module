@@ -49,16 +49,30 @@ knx_status_t knx_can_bus_subscribe(knx_can_bus_id_t bus, uint16_t first_id,
     return knx_can_router_add_range(&s->router, first_id, last_id, handler, user);
 }
 
-knx_status_t knx_can_bus_send(knx_can_bus_id_t bus, uint16_t std_id,
-                              const uint8_t *data, uint8_t len)
+static knx_status_t send_with_timeout(knx_can_bus_id_t bus, uint16_t std_id,
+                                      const uint8_t *data, uint8_t len,
+                                      uint32_t timeout_ms)
 {
     knx_can_bus_slot_t *s = slot(bus);
     if (s == NULL || !s->state.started) return KNX_NOT_READY;
-    s->state.last_status = knx_can_transmit_std(s->port, std_id, data, len, 1U);
+    s->state.last_status = knx_can_transmit_std(s->port, std_id, data, len,
+                                                timeout_ms);
     s->state.last_tx_ms = knx_millis();
     if (s->state.last_status == KNX_OK) s->state.tx_ok++;
     else s->state.tx_error++;
     return s->state.last_status;
+}
+
+knx_status_t knx_can_bus_send(knx_can_bus_id_t bus, uint16_t std_id,
+                              const uint8_t *data, uint8_t len)
+{
+    return send_with_timeout(bus, std_id, data, len, 1U);
+}
+
+knx_status_t knx_can_bus_try_send(knx_can_bus_id_t bus, uint16_t std_id,
+                                  const uint8_t *data, uint8_t len)
+{
+    return send_with_timeout(bus, std_id, data, len, 0U);
 }
 
 void knx_can_bus_snapshot(knx_can_bus_id_t bus, knx_can_bus_state_t *out)

@@ -175,6 +175,9 @@ knx_status_t knx_can_transmit_std(knx_can_t *can,
     /* Wait for TX FIFO to have free space, with timeout */
     uint32_t start = knx_millis();
     while (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan) == 0U) {
+        if (timeout_ms == 0U) {
+            return KNX_BUSY;
+        }
         if (knx_millis() - start >= timeout_ms) {
             return KNX_TIMEOUT;
         }
@@ -242,9 +245,11 @@ void HAL_FDCAN_ErrorCallback(FDCAN_HandleTypeDef *hfdcan)
                             error,
                             s_can_error_count);
 
-    /* Bus-off recovery: stop and restart FDCAN */
-    if (bus_off != 0U) {
-        (void)HAL_FDCAN_Stop(hfdcan);
-        (void)HAL_FDCAN_Start(hfdcan);
-    }
+    /*
+     * Do not stop/restart FDCAN from interrupt context.  With automatic
+     * retransmission enabled the M_CAN core performs standard bus-off
+     * recovery; task-side non-blocking sends tolerate the recovery window.
+     * Calling HAL_FDCAN_Stop/Start here can re-enter the HAL state machine and
+     * keep the CPU in the error IRQ long enough to starve the RTOS tick/tasks.
+     */
 }

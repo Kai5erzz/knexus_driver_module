@@ -1,4 +1,4 @@
-﻿# OctoLink MCP Skill
+# OctoLink MCP Skill
 
 Practical operating guide for Claude / AI agents using OctoLink MCP tools to debug embedded targets via GDB, OpenOCD, and serial.
 
@@ -158,7 +158,7 @@ This keeps the MCU running and avoids GDB timeout cascades.
 
 When the agent does not know the exact `source` + `key`, **must** call one of these before `telemetry_start_capture`:
 
-**`telemetry_suggest_series`** 鈥?ranked candidates with human-readable reasons (preferred):
+**`telemetry_suggest_series`** - ranked candidates with human-readable reasons (preferred):
 
 ```
 Tool: telemetry_suggest_series
@@ -170,9 +170,9 @@ Args: {
 }
 ```
 
-Each candidate includes `score`, `reason` (e.g. "exact key match; 120 samples 鈥?high density; ~50 Hz 鈥?high rate; latest value: 1.2345"), and `summary` stats. Pick the highest-scored candidate.
+Each candidate includes `score`, `reason` (e.g. "exact key match; 120 samples - high density; ~50 Hz - high rate; latest value: 1.2345"), and `summary` stats. Pick the highest-scored candidate.
 
-**`telemetry_list_series`** 鈥?flat list with compact summaries (alternative):
+**`telemetry_list_series`** - flat list with compact summaries (alternative):
 
 ```
 Tool: telemetry_list_series
@@ -212,6 +212,42 @@ After binding, use raw keys, semantic keys, or natural-language queries. Prefer 
 - `telemetry_find_series({ "query": "pitch rpm", "source": "stream" })` should pick `mini_gimbal_pitch_cmd_rpm` / `stream:219`.
 - `telemetry_get_history({ "source": "stream", "key": "mini_gimbal_yaw_cmd_rpm" })` reads the same series as `stream:220`.
 
+#### test_jc_driver profile
+
+For JC driver test firmware (streams 230..248):
+
+| Raw key | Semantic key | Unit |
+|---------|--------------|------|
+| `stream:230` | `test_jc_driver_state` | - |
+| `stream:231` | `test_jc_driver_active_motor_id` | - |
+| `stream:232` | `test_jc_driver_active_model` | - |
+| `stream:233` | `test_jc_driver_active_role` | - |
+| `stream:234` | `test_jc_driver_step_index` | - |
+| `stream:235` | `test_jc_driver_commanded_torque_nm` | `Nm` |
+| `stream:236` | `test_jc_driver_commanded_speed_rpm` | `rpm` |
+| `stream:237` | `test_jc_driver_commanded_position_deg` | `deg` |
+| `stream:238` | `test_jc_driver_voltage_v` | `V` |
+| `stream:239` | `test_jc_driver_bus_current_a` | `A` |
+| `stream:240` | `test_jc_driver_speed_feedback_rpm` | `rpm` |
+| `stream:241` | `test_jc_driver_position_feedback_deg` | `deg` |
+| `stream:242` | `test_jc_driver_drv_temp_c` | `C` |
+| `stream:243` | `test_jc_driver_mot_temp_c` | `C` |
+| `stream:244` | `test_jc_driver_error_code` | - |
+| `stream:245` | `test_jc_driver_tx_count` | - |
+| `stream:246` | `test_jc_driver_rx_count` | - |
+| `stream:247` | `test_jc_driver_timeout_count` | - |
+| `stream:248` | `test_jc_driver_last_status` | - |
+
+Examples:
+
+- `telemetry_find_series({ "query": "commanded speed rpm", "source": "stream" })` → `stream:236` / `test_jc_driver_commanded_speed_rpm`
+- `telemetry_find_series({ "query": "speed feedback rpm", "source": "stream" })` → `stream:240` / `test_jc_driver_speed_feedback_rpm`
+- `telemetry_find_series({ "query": "motor id", "source": "stream" })` → `stream:231` / `test_jc_driver_active_motor_id`
+- `telemetry_find_series({ "query": "drv temp", "source": "stream" })` → `stream:242` / `test_jc_driver_drv_temp_c`
+- `telemetry_get_history({ "source": "stream", "key": "test_jc_driver_speed_feedback_rpm" })` resolves to `stream:240`.
+
+Candidate and series responses include a `profile` field (`"mini_gimbal"`, `"test_jc_driver"`, or `null`) when the stream key matches a known default binding. Exact semantic selectors only resolve to streams within their own profile — `mini_gimbal_yaw_cmd_rpm` will not fall back to unrelated active streams.
+
 For control tuning, prefer high-level tuning tools:
 
 ```
@@ -232,7 +268,7 @@ When `telemetryKey` is omitted, OctoLink infers a likely mini gimbal series from
 
 ### Get recent history
 
-Use this when the user asks for "the last few seconds", "a dataset", "trend", "璋冨弬鏁版嵁", or "瀹炴椂鎬ф洿濂戒竴鐐?:
+Use this when the user asks for "the last few seconds", "a dataset", "trend", "调参数据", or "实时性更好一点":
 
 ```
 Tool: telemetry_get_history
@@ -285,7 +321,7 @@ Do not use this tool if the user expects a fresh target halt/read. It returns ca
 
 ### Triggered capture
 
-Use triggered capture when the user or agent wants to record data only after a condition happens. **Before calling `telemetry_start_capture`, the agent must know the exact `source` + `key`** 鈥?discover via `telemetry_suggest_series` or `telemetry_list_series` if unknown.
+Use triggered capture when the user or agent wants to record data only after a condition happens. **Before calling `telemetry_start_capture`, the agent must know the exact `source` + `key`** - discover via `telemetry_suggest_series` or `telemetry_list_series` if unknown.
 
 Condition syntax is simple numeric comparison over `value` or `v`:
 
@@ -310,7 +346,7 @@ Args: {
 
 Always set either `stopCondition` or `maxDurationMs` unless the user explicitly wants a manually stopped capture.
 
-If `telemetry_start_capture` returns `captureUsable:false`, the capture was **NOT** successfully created 鈥?do not report it as a working capture to the user. The requested source/key has no recent data. Use the included `suggestedSeries` to pick an active series, or call `telemetry_suggest_series` / `telemetry_list_series` to discover alternatives. Pass `allowEmptyCapture:true` only when the agent explicitly needs a capture waiting for future data.
+If `telemetry_start_capture` returns `captureUsable:false`, the capture was **NOT** successfully created - do not report it as a working capture to the user. The requested source/key has no recent data. Use the included `suggestedSeries` to pick an active series, or call `telemetry_suggest_series` / `telemetry_list_series` to discover alternatives. Pass `allowEmptyCapture:true` only when the agent explicitly needs a capture waiting for future data.
 
 Check progress:
 
@@ -334,7 +370,7 @@ Args: { "id": "cap-1", "reason": "userFinished" }
 
 ### Ask the user when trigger intent is unclear
 
-If the user says "绛夊彉閲忓彉鍖栧悗寮€濮嬮噰鏍? but does not specify all details, ask a concise question before creating the capture:
+If the user says "等变量变化后开始采样" but does not specify all details, ask a concise question before creating the capture:
 
 - Which source: `gdb` watch or `stream`?
 - Which variable/key/expression?
@@ -343,9 +379,9 @@ If the user says "绛夊彉閲忓彉鍖栧悗寮€濮嬮噰鏍? but does not sp
 
 Example phrasing:
 
-> 鎴戝彲浠ュ府浣犲紑涓€涓Е鍙戦噰鏍枫€備綘甯屾湜鐩戞帶鍝釜鍙橀噺锛熻揪鍒颁粈涔堟潯浠跺紑濮嬶紝浠€涔堟椂鍊欏仠姝紵
+> 我可以帮你开一个触发采样。你希望监控哪个变量？达到什么条件开始，什么时候停止？
 
-Capture sessions observe incoming telemetry only. They do not automatically add a GDB watch, open the serial port, or start polling. If `telemetry_start_capture` returns `captureUsable:false`, the capture was **not** created 鈥?this is a rejection, not a success. The requested source/key has no recent data. Use the included `suggestedSeries` or call `telemetry_suggest_series` / `telemetry_list_series` to discover an active series, or ask the user to enable the relevant watch/stream first. Pass `allowEmptyCapture:true` only when explicitly waiting for future data.
+Capture sessions observe incoming telemetry only. They do not automatically add a GDB watch, open the serial port, or start polling. If `telemetry_start_capture` returns `captureUsable:false`, the capture was **not** created - this is a rejection, not a success. The requested source/key has no recent data. Use the included `suggestedSeries` or call `telemetry_suggest_series` / `telemetry_list_series` to discover an active series, or ask the user to enable the relevant watch/stream first. Pass `allowEmptyCapture:true` only when explicitly waiting for future data.
 
 Recommended concise prompt when trigger details are missing:
 
@@ -598,7 +634,7 @@ Response includes `haltedByTool` (true if this call halted a running target), `v
 Tool: debug_capture_fault_context
 ```
 
-Read-only. Captures GDB status, key registers (`$pc`, `$sp`, `$lr`, `$xpsr`, `$ipsr`), Cortex-M fault registers (`CFSR`, `HFSR`, `MMFAR`, `BFAR`, `DFSR` via memory), current frame, and backtrace. Best-effort 鈥?individual read failures are reported in `warnings` but do not abort the tool. Use this before recovery to understand why the target faulted.
+Read-only. Captures GDB status, key registers (`$pc`, `$sp`, `$lr`, `$xpsr`, `$ipsr`), Cortex-M fault registers (`CFSR`, `HFSR`, `MMFAR`, `BFAR`, `DFSR` via memory), current frame, and backtrace. Best-effort - individual read failures are reported in `warnings` but do not abort the tool. Use this before recovery to understand why the target faulted.
 
 ### Run to breakpoint
 
@@ -674,7 +710,7 @@ The **Debug Console** is for quick inspection, not session setup. It accepts GDB
 
 ### Inspector Does NOT Affect the Main Window
 
-The Inspector is a **read-only observation window**. It does not interfere with the main OctoLink workspace, TopBar, file operations, or window controls. If the Inspector window becomes unresponsive or shows an error, simply close it 鈥?the main window and MCP server continue working normally.
+The Inspector is a **read-only observation window**. It does not interfere with the main OctoLink workspace, TopBar, file operations, or window controls. If the Inspector window becomes unresponsive or shows an error, simply close it - the main window and MCP server continue working normally.
 
 ### Source Root for Path Mapping
 
@@ -737,7 +773,7 @@ Tool: target_continue        (confirm: true)
 ```
 
 **Key points:**
-- `debug_get_session_state` is the recommended first call 鈥?it gives you target state, breakpoints, recent timeline, and **recommendations** in one shot.
+- `debug_get_session_state` is the recommended first call - it gives you target state, breakpoints, recent timeline, and **recommendations** in one shot.
 - To read variables at runtime, the target must be halted. Use `target_interrupt` or let a breakpoint hit first. If the target is running, `gdb_read_expressions_safe` will auto-halt for you.
 - OctoLink guards synchronous GDB/MI reads while the target is running, but breakpoint commands are allowed during execution. If a read reports that the target is running, do not retry it in a loop; pause first, wait for a breakpoint, or use telemetry history.
 - `target_interrupt` behaves like an IDE pause button: it sends GDB/MI `exec-interrupt` first and waits for a fresh stop event. If it cannot confirm a stop, assume the remote GDB session may be wedged and use `gdb_recover_session` instead of repeatedly interrupting.
@@ -745,14 +781,14 @@ Tool: target_continue        (confirm: true)
 - For automated workflows, use `debug_run_to_breakpoint` (set + continue + wait in one call) and `debug_step_until` (step until condition) instead of manual multi-step sequences.
 - For tuning datasets, prefer `telemetry_get_history` / `telemetry_start_capture` while the MCU is running. Use `debug_collect_variable_dataset` only when it is acceptable to halt the target for a bounded GDB sample window.
 - After a fault, call `debug_capture_fault_context` to snapshot registers and fault status before recovery.
-- Use `debug_recover_session` when GDB becomes unresponsive 鈥?it restarts GDB and reconnects to OpenOCD.
-- `debug_open_source_location` only changes the Inspector's view 鈥?it does not affect target execution.
+- Use `debug_recover_session` when GDB becomes unresponsive - it restarts GDB and reconnects to OpenOCD.
+- `debug_open_source_location` only changes the Inspector's view - it does not affect target execution.
 
 ---
 
 ## Response Field Reference
 
-### `debug_get_session_state` 鈫?`recommendations`
+### `debug_get_session_state` -> `recommendations`
 
 The `recommendations` field is a compact object designed for agents to quickly decide the next action without parsing the full snapshot:
 
@@ -762,7 +798,7 @@ The `recommendations` field is a compact object designed for agents to quickly d
     "mcpReady": true,
     "gdbRunning": true,
     "targetState": "stopped",
-    "currentLocation": "stopped 路 main:42",
+    "currentLocation": "stopped - main:42",
     "recentErrors": [
       { "toolName": "gdb_evaluate_expression", "summary": "FAIL gdb_evaluate_expression foo: ..." }
     ],
@@ -848,7 +884,7 @@ A: First, call `get_mcp_session_health` or `debug_get_session_state` — these n
 A: The Inspector only tracks breakpoints and variables set through MCP tools during the current session. Breakpoints set from the main OctoLink GUI are shown if they appear in GDB's breakpoint list (`gdb_list_breakpoints`).
 
 **Q: How do I clear the timeline?**
-A: Call `debug_clear_session_timeline`. This only clears the Inspector's event log 鈥?breakpoints and variable cache are preserved.
+A: Call `debug_clear_session_timeline`. This only clears the Inspector's event log - breakpoints and variable cache are preserved.
 
 ---
 

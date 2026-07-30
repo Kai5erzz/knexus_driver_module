@@ -34,6 +34,7 @@ typedef struct {
 } knx_drive_state_t;
 
 knx_status_t knx_drive_init(void);
+void knx_drive_reload_params(void);
 knx_status_t knx_drive_update(float dt_s);
 knx_status_t knx_drive_set_command(float linear_mps, float angular_radps);
 knx_status_t knx_drive_set_velocity(float linear_mps, float angular_radps);

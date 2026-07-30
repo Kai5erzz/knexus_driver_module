@@ -71,7 +71,10 @@ extern uint32_t SystemCoreClock;
 #define configUSE_SB_COMPLETED_CALLBACK          ( 0 )
 #define configUSE_MINI_LIST_ITEM                ( 1 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
-#define configTOTAL_HEAP_SIZE                    ((size_t)32768)
+/* contest_2026 uses several dynamically-created CMSIS threads.  Keep enough
+ * headroom for idle/timer tasks and future control hooks; 32 KiB was already
+ * exhausted before the scheduler started when one task was added. */
+#define configTOTAL_HEAP_SIZE                    ((size_t)(48 * 1024))
 #define configMAX_TASK_NAME_LEN                  ( 16 )
 #define configHEAP_CLEAR_MEMORY_ON_FREE          0
 #define configUSE_TRACE_FACILITY                 1

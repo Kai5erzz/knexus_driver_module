@@ -146,6 +146,7 @@ void BMI088_Read(void);
  * @param  octo: OctoLink实例指针
  */
 void BMI088_DebugOcto(Octolinker_Instance_t *octo);
+extern float bmi088_heater_feedforward;
 
 /* ==================== BMI088 加热温控 ==================== */
 

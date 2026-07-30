@@ -13,6 +13,13 @@ const SPI    = scripting.addModule("/ti/driverlib/SPI", {}, false);
 const MCAN   = scripting.addModule("/ti/driverlib/MCAN", {}, false);
 const SYSCTL = scripting.addModule("/ti/driverlib/SYSCTL");
 const Board  = scripting.addModule("/ti/driverlib/Board", {}, false);
+const NONMAIN = scripting.addModule("/ti/driverlib/NONMAIN");
+
+/* PA18 can be driven high by the carrier's CUSTOM SPI wiring.  Disable the
+ * ROM BSL hardware invoke-pin check so a reset cannot strand AHB-AP in BSL
+ * standby.  SWD, mass erase and factory reset remain enabled. */
+NONMAIN.nonmainWarning = true;
+NONMAIN.bslInvokePinCheck = false;
 
 /* ═══════════════ GPIO ═══════════════ */
 const LED0 = GPIO.addInstance();
@@ -57,8 +64,8 @@ MPL.associatedPins[0].$name = "ML_PHASE"; MPL.associatedPins[0].assignedPin = "7
 MPL.associatedPins[0].pin.$suggestSolution = "PA7";
 const MPR = GPIO.addInstance();
 MPR.$name = "MOTOR_R_PH"; MPR.port = "PORTA";
-MPR.associatedPins[0].$name = "MR_PHASE"; MPR.associatedPins[0].assignedPin = "2";
-MPR.associatedPins[0].pin.$suggestSolution = "PA2";
+MPR.associatedPins[0].$name = "MR_PHASE"; MPR.associatedPins[0].assignedPin = "30";
+MPR.associatedPins[0].pin.$suggestSolution = "PA30";
 
 const CS0 = GPIO.addInstance();
 CS0.$name = "BMI_CS0"; CS0.port = "PORTA";
@@ -71,16 +78,28 @@ CS1.associatedPins[0].pin.$suggestSolution = "PA24";
 
 const T0 = GPIO.addInstance();
 T0.$name = "TRK_AD0"; T0.port = "PORTB";
-T0.associatedPins[0].$name = "AD0_PIN"; T0.associatedPins[0].assignedPin = "4";
-T0.associatedPins[0].pin.$suggestSolution = "PB4";
+T0.associatedPins[0].$name = "AD0_PIN"; T0.associatedPins[0].assignedPin = "15";
+T0.associatedPins[0].pin.$suggestSolution = "PB15";
 const T1 = GPIO.addInstance();
 T1.$name = "TRK_AD1"; T1.port = "PORTB";
-T1.associatedPins[0].$name = "AD1_PIN"; T1.associatedPins[0].assignedPin = "5";
-T1.associatedPins[0].pin.$suggestSolution = "PB5";
+T1.associatedPins[0].$name = "AD1_PIN"; T1.associatedPins[0].assignedPin = "14";
+T1.associatedPins[0].pin.$suggestSolution = "PB14";
 const T2 = GPIO.addInstance();
 T2.$name = "TRK_AD2"; T2.port = "PORTB";
-T2.associatedPins[0].$name = "AD2_PIN"; T2.associatedPins[0].assignedPin = "7";
-T2.associatedPins[0].pin.$suggestSolution = "PB7";
+T2.associatedPins[0].$name = "AD2_PIN"; T2.associatedPins[0].assignedPin = "13";
+T2.associatedPins[0].pin.$suggestSolution = "PB13";
+
+/* Carrier I2C_CUSTOM: software-I2C OLED, PA4=SCL and PA3=SDA on MSPM0. */
+const OLED_SCL = GPIO.addInstance();
+OLED_SCL.$name = "OLED_SCL"; OLED_SCL.port = "PORTA";
+OLED_SCL.associatedPins[0].$name = "SCL_PIN";
+OLED_SCL.associatedPins[0].assignedPin = "4";
+OLED_SCL.associatedPins[0].pin.$suggestSolution = "PA4";
+const OLED_SDA = GPIO.addInstance();
+OLED_SDA.$name = "OLED_SDA"; OLED_SDA.port = "PORTA";
+OLED_SDA.associatedPins[0].$name = "SDA_PIN";
+OLED_SDA.associatedPins[0].assignedPin = "3";
+OLED_SDA.associatedPins[0].pin.$suggestSolution = "PA3";
 
 /* ═══════════════ PERIPHERALS ═══════════════ */
 const UART1 = UART.addInstance();
@@ -90,7 +109,7 @@ UART1.peripheral.txPin.$assign = "PB2";
 UART1.peripheral.rxPin.$assign = "PB3";
 
 const QEI1 = QEI.addInstance();
-QEI1.$name = "QEI_LEFT";
+QEI1.$name = "QEI_RIGHT";
 QEI1.peripheral.$assign = "TIMG8";
 QEI1.peripheral.ccp0Pin.$assign = "PA21";
 QEI1.peripheral.ccp1Pin.$assign = "PA22";
@@ -99,8 +118,13 @@ const PWM_L = PWM.addInstance();
 PWM_L.$name = "PWM_L";
 PWM_L.clockPrescale = 1; PWM_L.timerCount = 4000;
 PWM_L.peripheral.$assign = "TIMA0";
-PWM_L.peripheral.ccp0Pin.$assign = "PA0";
+PWM_L.ccIndex = [0,2];
+/* PB8/SPI_CUSTOM_CS1 is a standard push-pull I/O with TIMA0_C0.
+ * Flywire PB8 to L1_EN and isolate the original PA0/L1_EN connection. */
+PWM_L.peripheral.ccp0Pin.$assign = "PB8";
 PWM_L.PWM_CHANNEL_0.$name = "PWM_L_EN"; PWM_L.PWM_CHANNEL_0.dutyCycle = 0;
+PWM_L.peripheral.ccp2Pin.$assign = "PB17";
+PWM_L.PWM_CHANNEL_1.$name = "BMI088_HEATER"; PWM_L.PWM_CHANNEL_1.dutyCycle = 0;
 
 const PWM_R = PWM.addInstance();
 PWM_R.$name = "PWM_R";
@@ -114,6 +138,15 @@ ADC1.$name = "ADC_MOTOR"; ADC1.repeatMode = false;
 ADC1.peripheral.$assign = "ADC0";
 ADC1.peripheral.adcPin0.$assign = "PA27";
 ADC1.sampleTime0 = "250ns";
+
+/* Carrier TRACK_ADC is repaired by flywire from PA4 to PA16. */
+const ADC_TRACK = ADC12.addInstance();
+ADC_TRACK.$name = "ADC_TRACK"; ADC_TRACK.repeatMode = false;
+ADC_TRACK.peripheral.$assign = "ADC1";
+ADC_TRACK.adcMem0chansel = "DL_ADC12_INPUT_CHAN_1";
+ADC_TRACK.peripheral.adcPin1.$assign = "PA16";
+ADC_TRACK.sampleTime0 = "15.625 us";
+ADC_TRACK.powerDownMode = "DL_ADC12_POWER_DOWN_MODE_MANUAL";
 
 const BMI_SPI = SPI.addInstance();
 BMI_SPI.$name = "SPI_BMI088"; BMI_SPI.targetBitRate = 10000000;

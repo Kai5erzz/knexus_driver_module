@@ -119,11 +119,11 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  (void)argument;
+  /* CubeMX requires a default-task entry, but contest_2026 owns its complete
+   * task set.  Delete this otherwise-empty 1 kHz task after the scheduler
+   * starts so it does not add needless context switches. */
+  osThreadExit();
   /* USER CODE END StartDefaultTask */
 }
 

@@ -36,18 +36,18 @@ extern "C" {
 #define GPIO_HFXOUT_IOMUX                                        (IOMUX_PINCM11)
 #define CPUCLK_FREQ                                                     80000000
 
-/* ── QEI_LEFT (TIMG8, PA21=CCP0, PA22=CCP1) ── */
-#define QEI_LEFT_INST                                                      TIMG8
-#define QEI_LEFT_INST_IRQHandler                                TIMG8_IRQHandler
-#define QEI_LEFT_INST_INT_IRQN                                  (TIMG8_INT_IRQn)
-#define GPIO_QEI_LEFT_PHA_PORT                                             GPIOA
-#define GPIO_QEI_LEFT_PHA_PIN                                     DL_GPIO_PIN_21
-#define GPIO_QEI_LEFT_PHA_IOMUX                                  (IOMUX_PINCM46)
-#define GPIO_QEI_LEFT_PHA_IOMUX_FUNC                 IOMUX_PINCM46_PF_TIMG8_CCP0
-#define GPIO_QEI_LEFT_PHB_PORT                                             GPIOA
-#define GPIO_QEI_LEFT_PHB_PIN                                     DL_GPIO_PIN_22
-#define GPIO_QEI_LEFT_PHB_IOMUX                                  (IOMUX_PINCM47)
-#define GPIO_QEI_LEFT_PHB_IOMUX_FUNC                 IOMUX_PINCM47_PF_TIMG8_CCP1
+/* ── QEI_RIGHT (TIMG8, PA21=CCP0, PA22=CCP1) ── */
+#define QEI_RIGHT_INST                                                     TIMG8
+#define QEI_RIGHT_INST_IRQHandler                               TIMG8_IRQHandler
+#define QEI_RIGHT_INST_INT_IRQN                                 (TIMG8_INT_IRQn)
+#define GPIO_QEI_RIGHT_PHA_PORT                                            GPIOA
+#define GPIO_QEI_RIGHT_PHA_PIN                                    DL_GPIO_PIN_21
+#define GPIO_QEI_RIGHT_PHA_IOMUX                                 (IOMUX_PINCM46)
+#define GPIO_QEI_RIGHT_PHA_IOMUX_FUNC                IOMUX_PINCM46_PF_TIMG8_CCP0
+#define GPIO_QEI_RIGHT_PHB_PORT                                            GPIOA
+#define GPIO_QEI_RIGHT_PHB_PIN                                    DL_GPIO_PIN_22
+#define GPIO_QEI_RIGHT_PHB_IOMUX                                 (IOMUX_PINCM47)
+#define GPIO_QEI_RIGHT_PHB_IOMUX_FUNC                IOMUX_PINCM47_PF_TIMG8_CCP1
 
 /* ── UART_DEBUG (UART3, PB2=TX, PB3=RX, 921600 @ 80 MHz) ── */
 #define UART_DEBUG_INST                                                    UART3
@@ -66,23 +66,25 @@ extern "C" {
 #define UART_DEBUG_IBRD_80_MHZ_921600_BAUD                              (5)
 #define UART_DEBUG_FBRD_80_MHZ_921600_BAUD                             (27)
 
-/* ── PWM_L (TIMA0, CC0=PA0, CC1=PA1, 20 kHz) ── */
+/* ── PWM_L (TIMA0, CC0=PB8/SPI_CUSTOM_CS1, 20 kHz) ──
+ * PB8/SPI_CUSTOM_CS1 is now the standard push-pull left-motor EN output. */
 #define PWM_L_INST                                                        TIMA0
 #define PWM_L_INST_IRQHandler                                  TIMA0_IRQHandler
 #define PWM_L_INST_INT_IRQN                                    (TIMA0_INT_IRQn)
 #define PWM_L_INST_CLK_FREQ                                             80000000
-#define GPIO_PWM_L_C0_PORT                                               GPIOA
-#define GPIO_PWM_L_C0_PIN                                       DL_GPIO_PIN_0
-#define GPIO_PWM_L_C0_IOMUX                                     (IOMUX_PINCM1)
-#define GPIO_PWM_L_C0_IOMUX_FUNC                   IOMUX_PINCM1_PF_TIMA0_CCP0
+#define GPIO_PWM_L_C0_PORT                                               GPIOB
+#define GPIO_PWM_L_C0_PIN                                       DL_GPIO_PIN_8
+#define GPIO_PWM_L_C0_IOMUX                                    (IOMUX_PINCM25)
+#define GPIO_PWM_L_C0_IOMUX_FUNC                  IOMUX_PINCM25_PF_TIMA0_CCP0
 #define GPIO_PWM_L_C0_IDX                                    DL_TIMER_CC_0_INDEX
-#define GPIO_PWM_L_C1_PORT                                               GPIOA
-#define GPIO_PWM_L_C1_PIN                                       DL_GPIO_PIN_1
-#define GPIO_PWM_L_C1_IOMUX                                     (IOMUX_PINCM2)
-#define GPIO_PWM_L_C1_IOMUX_FUNC                   IOMUX_PINCM2_PF_TIMA0_CCP1
-#define GPIO_PWM_L_C1_IDX                                    DL_TIMER_CC_1_INDEX
-
-/* ── PWM_R (TIMA1, CC0=PA15, CC1=PA16, 20 kHz) ── */
+/* BMI088 heater shares TIMA0's period but uses independent CC2 on PB17. */
+#define PWM_HEATER_INST                                                   TIMA0
+#define GPIO_PWM_HEATER_C2_PORT                                           GPIOB
+#define GPIO_PWM_HEATER_C2_PIN                                   DL_GPIO_PIN_17
+#define GPIO_PWM_HEATER_C2_IOMUX                                (IOMUX_PINCM43)
+#define GPIO_PWM_HEATER_C2_IOMUX_FUNC              IOMUX_PINCM43_PF_TIMA0_CCP2
+#define GPIO_PWM_HEATER_C2_IDX                                DL_TIMER_CC_2_INDEX
+/* ── PWM_R (TIMA1, CC0=PA15, 20 kHz) ── */
 #define PWM_R_INST                                                        TIMA1
 #define PWM_R_INST_IRQHandler                                  TIMA1_IRQHandler
 #define PWM_R_INST_INT_IRQN                                    (TIMA1_INT_IRQn)
@@ -92,12 +94,6 @@ extern "C" {
 #define GPIO_PWM_R_C0_IOMUX                                    (IOMUX_PINCM37)
 #define GPIO_PWM_R_C0_IOMUX_FUNC                  IOMUX_PINCM37_PF_TIMA1_CCP0
 #define GPIO_PWM_R_C0_IDX                                    DL_TIMER_CC_0_INDEX
-#define GPIO_PWM_R_C1_PORT                                               GPIOA
-#define GPIO_PWM_R_C1_PIN                                      DL_GPIO_PIN_16
-#define GPIO_PWM_R_C1_IOMUX                                    (IOMUX_PINCM38)
-#define GPIO_PWM_R_C1_IOMUX_FUNC                  IOMUX_PINCM38_PF_TIMA1_CCP1
-#define GPIO_PWM_R_C1_IDX                                    DL_TIMER_CC_1_INDEX
-
 /* ── ADC_MOTOR (ADC0, PA27) ── */
 #define ADC_MOTOR_INST                                                     ADC0
 #define ADC_MOTOR_INST_IRQHandler                               ADC0_IRQHandler
@@ -108,6 +104,12 @@ extern "C" {
 #define GPIO_ADC_MOTOR_C0_PORT                                           GPIOA
 #define GPIO_ADC_MOTOR_C0_PIN                                   DL_GPIO_PIN_27
 #define GPIO_ADC_MOTOR_C0_IOMUX                                  (IOMUX_PINCM60)
+
+/* Track sensor ADC: carrier TRACK_ADC flywire -> PA16/A1_1, ADC1 MEM0. */
+#define ADC_TRACK_INST                                                     ADC1
+#define ADC_TRACK_ADCMEM_0                                   DL_ADC12_MEM_IDX_0
+#define GPIO_ADC_TRACK_C1_PORT                                            GPIOA
+#define GPIO_ADC_TRACK_C1_PIN                                    DL_GPIO_PIN_16
 
 /* ── SPI_BMI088 (SPI0, SCLK=PA11, PICO=PA14, POCI=PA10, CS0=PB25) ── */
 #define SPI_BMI088_INST                                                    SPI0
@@ -169,22 +171,30 @@ extern "C" {
 
 /* ── Track sensor MUX select GPIO outputs ── */
 #define TRK_AD0_PORT                                                     (GPIOB)
-#define TRK_AD0_AD0_PIN_PIN                                      (DL_GPIO_PIN_4)
-#define TRK_AD0_AD0_PIN_IOMUX                                    (IOMUX_PINCM17)
+#define TRK_AD0_AD0_PIN_PIN                                     (DL_GPIO_PIN_15)
+#define TRK_AD0_AD0_PIN_IOMUX                                    (IOMUX_PINCM32)
 #define TRK_AD1_PORT                                                     (GPIOB)
-#define TRK_AD1_AD1_PIN_PIN                                      (DL_GPIO_PIN_5)
-#define TRK_AD1_AD1_PIN_IOMUX                                    (IOMUX_PINCM18)
+#define TRK_AD1_AD1_PIN_PIN                                     (DL_GPIO_PIN_14)
+#define TRK_AD1_AD1_PIN_IOMUX                                    (IOMUX_PINCM31)
 #define TRK_AD2_PORT                                                     (GPIOB)
-#define TRK_AD2_AD2_PIN_PIN                                      (DL_GPIO_PIN_7)
-#define TRK_AD2_AD2_PIN_IOMUX                                    (IOMUX_PINCM24)
+#define TRK_AD2_AD2_PIN_PIN                                     (DL_GPIO_PIN_13)
+#define TRK_AD2_AD2_PIN_IOMUX                                    (IOMUX_PINCM30)
+
+/* ── OLED software I2C on carrier I2C_CUSTOM ── */
+#define OLED_SCL_PORT                                                     (GPIOA)
+#define OLED_SCL_SCL_PIN_PIN                                      (DL_GPIO_PIN_4)
+#define OLED_SCL_SCL_PIN_IOMUX                                     (IOMUX_PINCM9)
+#define OLED_SDA_PORT                                                     (GPIOA)
+#define OLED_SDA_SDA_PIN_PIN                                      (DL_GPIO_PIN_3)
+#define OLED_SDA_SDA_PIN_IOMUX                                     (IOMUX_PINCM8)
 
 /* ── Motor PHASE GPIOs ── */
 #define MOTOR_L_PH_PORT                                                  (GPIOA)
 #define MOTOR_L_PH_ML_PHASE_PIN                                (DL_GPIO_PIN_7)
 #define MOTOR_L_PH_ML_PHASE_IOMUX                              (IOMUX_PINCM14)
 #define MOTOR_R_PH_PORT                                                  (GPIOA)
-#define MOTOR_R_PH_MR_PHASE_PIN                                (DL_GPIO_PIN_2)
-#define MOTOR_R_PH_MR_PHASE_IOMUX                               (IOMUX_PINCM7)
+#define MOTOR_R_PH_MR_PHASE_PIN                               (DL_GPIO_PIN_30)
+#define MOTOR_R_PH_MR_PHASE_IOMUX                               (IOMUX_PINCM5)
 
 /* ── LED ── */
 #define LED0_PORT                                                        (GPIOB)
@@ -224,11 +234,12 @@ void SYSCFG_DL_init(void);
 void SYSCFG_DL_initPower(void);
 void SYSCFG_DL_GPIO_init(void);
 void SYSCFG_DL_SYSCTL_init(void);
-void SYSCFG_DL_QEI_LEFT_init(void);
+void SYSCFG_DL_QEI_RIGHT_init(void);
 void SYSCFG_DL_UART_DEBUG_init(void);
 void SYSCFG_DL_PWM_L_init(void);
 void SYSCFG_DL_PWM_R_init(void);
 void SYSCFG_DL_ADC_MOTOR_init(void);
+void SYSCFG_DL_ADC_TRACK_init(void);
 void SYSCFG_DL_SPI_BMI088_init(void);
 void SYSCFG_DL_MCAN0_init(void);
 

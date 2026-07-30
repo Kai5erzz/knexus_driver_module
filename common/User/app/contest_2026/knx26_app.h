@@ -24,6 +24,7 @@ bool knx26_app_is_ready(void);
 void knx26_fast_update(void);
 void knx26_control_update(float dt_s);
 void knx26_track_update(void);
+void knx26_perception_update(void);
 void knx26_comm_update(void);
 void knx26_user_app_update(void);
 void knx26_debug_update(void);

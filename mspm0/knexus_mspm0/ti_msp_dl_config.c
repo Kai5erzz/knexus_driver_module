@@ -9,7 +9,7 @@
 
 #include "ti_msp_dl_config.h"
 
-DL_TimerG_backupConfig gQEI_LEFTBackup;
+DL_TimerG_backupConfig gQEI_RIGHTBackup;
 DL_TimerA_backupConfig gPWM_LBackup;
 DL_TimerA_backupConfig gPWM_RBackup;
 DL_UART_Main_backupConfig gUART_DEBUGBackup;
@@ -45,7 +45,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     knx_mspm0_boot_stage = 3U;
     SYSCFG_DL_SYSCTL_init();
     knx_mspm0_boot_stage = 4U;
-    SYSCFG_DL_QEI_LEFT_init();
+    SYSCFG_DL_QEI_RIGHT_init();
     knx_mspm0_boot_stage = 5U;
     SYSCFG_DL_UART_DEBUG_init();
     knx_mspm0_boot_stage = 6U;
@@ -54,12 +54,13 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_PWM_R_init();
     knx_mspm0_boot_stage = 8U;
     SYSCFG_DL_ADC_MOTOR_init();
+    SYSCFG_DL_ADC_TRACK_init();
     knx_mspm0_boot_stage = 9U;
     SYSCFG_DL_SPI_BMI088_init();
     knx_mspm0_boot_stage = 10U;
     SYSCFG_DL_MCAN0_init();
     knx_mspm0_boot_stage = 11U;
-    gQEI_LEFTBackup.backupRdy     = false;
+    gQEI_RIGHTBackup.backupRdy    = false;
     gPWM_LBackup.backupRdy        = false;
     gPWM_RBackup.backupRdy        = false;
     gUART_DEBUGBackup.backupRdy   = false;
@@ -72,7 +73,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_saveConfiguration(void)
     bool retStatus = true;
     retStatus &= DL_TimerA_saveConfiguration(PWM_L_INST, &gPWM_LBackup);
     retStatus &= DL_TimerA_saveConfiguration(PWM_R_INST, &gPWM_RBackup);
-    retStatus &= DL_TimerG_saveConfiguration(QEI_LEFT_INST, &gQEI_LEFTBackup);
+    retStatus &= DL_TimerG_saveConfiguration(QEI_RIGHT_INST, &gQEI_RIGHTBackup);
     retStatus &= DL_UART_Main_saveConfiguration(UART_DEBUG_INST, &gUART_DEBUGBackup);
     retStatus &= DL_SPI_saveConfiguration(SPI_BMI088_INST, &gSPI_BMI088Backup);
     retStatus &= DL_MCAN_saveConfiguration(MCAN0_INST, &gMCAN0Backup);
@@ -84,7 +85,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_restoreConfiguration(void)
     bool retStatus = true;
     retStatus &= DL_TimerA_restoreConfiguration(PWM_L_INST, &gPWM_LBackup, false);
     retStatus &= DL_TimerA_restoreConfiguration(PWM_R_INST, &gPWM_RBackup, false);
-    retStatus &= DL_TimerG_restoreConfiguration(QEI_LEFT_INST, &gQEI_LEFTBackup, false);
+    retStatus &= DL_TimerG_restoreConfiguration(QEI_RIGHT_INST, &gQEI_RIGHTBackup, false);
     retStatus &= DL_UART_Main_restoreConfiguration(UART_DEBUG_INST, &gUART_DEBUGBackup);
     retStatus &= DL_SPI_restoreConfiguration(SPI_BMI088_INST, &gSPI_BMI088Backup);
     retStatus &= DL_MCAN_restoreConfiguration(MCAN0_INST, &gMCAN0Backup);
@@ -95,21 +96,23 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
 {
     DL_GPIO_reset(GPIOA);
     DL_GPIO_reset(GPIOB);
-    DL_TimerG_reset(QEI_LEFT_INST);
+    DL_TimerG_reset(QEI_RIGHT_INST);
     DL_TimerA_reset(PWM_L_INST);
     DL_TimerA_reset(PWM_R_INST);
     DL_UART_Main_reset(UART_DEBUG_INST);
     DL_ADC12_reset(ADC_MOTOR_INST);
+    DL_ADC12_reset(ADC_TRACK_INST);
     DL_SPI_reset(SPI_BMI088_INST);
     DL_MCAN_reset(MCAN0_INST);
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
-    DL_TimerG_enablePower(QEI_LEFT_INST);
+    DL_TimerG_enablePower(QEI_RIGHT_INST);
     DL_TimerA_enablePower(PWM_L_INST);
     DL_TimerA_enablePower(PWM_R_INST);
     DL_UART_Main_enablePower(UART_DEBUG_INST);
     DL_ADC12_enablePower(ADC_MOTOR_INST);
+    DL_ADC12_enablePower(ADC_TRACK_INST);
     DL_SPI_enablePower(SPI_BMI088_INST);
     DL_MCAN_enablePower(MCAN0_INST);
     delay_cycles(POWER_STARTUP_DELAY);
@@ -122,10 +125,10 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralAnalogFunction(GPIO_HFXOUT_IOMUX);
 
     /* QEI encoder peripheral inputs */
-    DL_GPIO_initPeripheralInputFunction(GPIO_QEI_LEFT_PHA_IOMUX,
-                                        GPIO_QEI_LEFT_PHA_IOMUX_FUNC);
-    DL_GPIO_initPeripheralInputFunction(GPIO_QEI_LEFT_PHB_IOMUX,
-                                        GPIO_QEI_LEFT_PHB_IOMUX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(GPIO_QEI_RIGHT_PHA_IOMUX,
+                                        GPIO_QEI_RIGHT_PHA_IOMUX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(GPIO_QEI_RIGHT_PHB_IOMUX,
+                                        GPIO_QEI_RIGHT_PHB_IOMUX_FUNC);
 
     /* UART peripheral pins */
     DL_GPIO_initPeripheralOutputFunction(GPIO_UART_DEBUG_IOMUX_TX,
@@ -137,15 +140,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_L_C0_IOMUX,
                                          GPIO_PWM_L_C0_IOMUX_FUNC);
     DL_GPIO_enableOutput(GPIO_PWM_L_C0_PORT, GPIO_PWM_L_C0_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_L_C1_IOMUX,
-                                         GPIO_PWM_L_C1_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_PWM_L_C1_PORT, GPIO_PWM_L_C1_PIN);
+    DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_HEATER_C2_IOMUX,
+                                         GPIO_PWM_HEATER_C2_IOMUX_FUNC);
+    DL_GPIO_enableOutput(GPIO_PWM_HEATER_C2_PORT, GPIO_PWM_HEATER_C2_PIN);
     DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_R_C0_IOMUX,
                                          GPIO_PWM_R_C0_IOMUX_FUNC);
     DL_GPIO_enableOutput(GPIO_PWM_R_C0_PORT, GPIO_PWM_R_C0_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_R_C1_IOMUX,
-                                         GPIO_PWM_R_C1_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_PWM_R_C1_PORT, GPIO_PWM_R_C1_PIN);
 
     /* SPI BMI088 peripheral pins */
     DL_GPIO_initPeripheralOutputFunction(GPIO_SPI_BMI088_IOMUX_SCLK,
@@ -163,7 +163,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralInputFunction(GPIO_MCAN0_IOMUX_CAN_RX,
                                         GPIO_MCAN0_IOMUX_CAN_RX_FUNC);
 
-    /* ADC shared motor/track analog input */
+    /* Motor-current analog input. */
     DL_GPIO_initPeripheralAnalogFunction(GPIO_ADC_MOTOR_C0_IOMUX);
 
     /* LED outputs */
@@ -198,7 +198,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_enableOutput(GPIOA, MOTOR_L_PH_ML_PHASE_PIN |
                                  MOTOR_R_PH_MR_PHASE_PIN);
 
-    /* Right encoder GPIO inputs (pull-down, both-edge interrupt) */
+    /* Left encoder GPIO inputs (pull-down, both-edge interrupt) */
     DL_GPIO_initDigitalInputFeatures(ENC_RA_ENC_RA_PIN_IOMUX,
         DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_DOWN,
         DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
@@ -228,6 +228,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_enableOutput(GPIOB, TRK_AD0_AD0_PIN_PIN |
                                  TRK_AD1_AD1_PIN_PIN |
                                  TRK_AD2_AD2_PIN_PIN);
+
+    /* OLED software-I2C pins idle released; driver toggles DOE as open-drain. */
+    DL_GPIO_initDigitalInput(OLED_SCL_SCL_PIN_IOMUX);
+    DL_GPIO_initDigitalInput(OLED_SDA_SDA_PIN_IOMUX);
+    DL_GPIO_clearPins(GPIOA, OLED_SCL_SCL_PIN_PIN | OLED_SDA_SDA_PIN_PIN);
+    DL_GPIO_disableOutput(GPIOA, OLED_SCL_SCL_PIN_PIN | OLED_SDA_SDA_PIN_PIN);
 }
 
 /* ── 80 MHz clock (HFXT 40 MHz → SYSPLL → MCLK 80 MHz) ── */
@@ -273,22 +279,22 @@ SYSCONFIG_WEAK void SYSCFG_DL_SYSCTL_init(void)
 }
 
 /* ── QEI left encoder ── */
-static const DL_TimerG_ClockConfig gQEI_LEFTClockConfig = {
+static const DL_TimerG_ClockConfig gQEI_RIGHTClockConfig = {
     .clockSel = DL_TIMER_CLOCK_BUSCLK,
     .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
     .prescale = 0U
 };
 
-SYSCONFIG_WEAK void SYSCFG_DL_QEI_LEFT_init(void)
+SYSCONFIG_WEAK void SYSCFG_DL_QEI_RIGHT_init(void)
 {
-    DL_TimerG_setClockConfig(QEI_LEFT_INST,
-        (DL_TimerG_ClockConfig *)&gQEI_LEFTClockConfig);
-    DL_TimerG_configQEI(QEI_LEFT_INST, DL_TIMER_QEI_MODE_2_INPUT,
+    DL_TimerG_setClockConfig(QEI_RIGHT_INST,
+        (DL_TimerG_ClockConfig *)&gQEI_RIGHTClockConfig);
+    DL_TimerG_configQEI(QEI_RIGHT_INST, DL_TIMER_QEI_MODE_2_INPUT,
         DL_TIMER_CC_INPUT_INV_NOINVERT, DL_TIMER_CC_0_INDEX);
-    DL_TimerG_configQEI(QEI_LEFT_INST, DL_TIMER_QEI_MODE_2_INPUT,
+    DL_TimerG_configQEI(QEI_RIGHT_INST, DL_TIMER_QEI_MODE_2_INPUT,
         DL_TIMER_CC_INPUT_INV_NOINVERT, DL_TIMER_CC_1_INDEX);
-    DL_TimerG_setLoadValue(QEI_LEFT_INST, 65535);
-    DL_TimerG_enableClock(QEI_LEFT_INST);
+    DL_TimerG_setLoadValue(QEI_RIGHT_INST, 65535);
+    DL_TimerG_enableClock(QEI_RIGHT_INST);
 }
 
 /* ── UART debug ── */
@@ -350,7 +356,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_L_init(void)
     DL_TimerA_setCaptCompUpdateMethod(PWM_L_INST,
         DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
         DL_TIMERA_CAPTURE_COMPARE_0_INDEX);
-    DL_TimerA_setCaptureCompareValue(PWM_L_INST, 0,
+    DL_TimerA_setCaptureCompareValue(PWM_L_INST, 4000,
         DL_TIMER_CC_0_INDEX);
     DL_TimerA_setCaptureCompareOutCtl(PWM_L_INST,
         DL_TIMER_CC_OCTL_INIT_VAL_LOW,
@@ -360,10 +366,27 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_L_init(void)
     DL_TimerA_setCaptCompUpdateMethod(PWM_L_INST,
         DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
         DL_TIMERA_CAPTURE_COMPARE_1_INDEX);
-    DL_TimerA_setCaptureCompareValue(PWM_L_INST, 0,
+    DL_TimerA_setCaptureCompareValue(PWM_L_INST, 4000,
         DL_TIMER_CC_1_INDEX);
+    DL_TimerA_setCaptureCompareOutCtl(PWM_L_INST,
+        DL_TIMER_CC_OCTL_INIT_VAL_LOW,
+        DL_TIMER_CC_OCTL_INV_OUT_DISABLED,
+        DL_TIMER_CC_OCTL_SRC_FUNCVAL,
+        DL_TIMERA_CAPTURE_COMPARE_2_INDEX);
+    DL_TimerA_setCaptCompUpdateMethod(PWM_L_INST,
+        DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
+        DL_TIMERA_CAPTURE_COMPARE_2_INDEX);
+    DL_TimerA_setCaptureCompareValue(PWM_L_INST, 4000,
+        DL_TIMER_CC_2_INDEX);
+    DL_TimerA_setCCPOutputDisabledAdv(PWM_L_INST,
+        DL_TIMER_CCP0_DIS_OUT_ADV_FORCE_LOW |
+        DL_TIMER_CCP1_DIS_OUT_ADV_FORCE_LOW |
+        DL_TIMER_CCP2_DIS_OUT_ADV_FORCE_LOW |
+        DL_TIMER_CCP3_DIS_OUT_ADV_FORCE_LOW);
     DL_TimerA_enableClock(PWM_L_INST);
-    DL_TimerA_setCCPDirection(PWM_L_INST, DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT);
+    /* Match TI SysConfig's canonical TIMA0 four-CC setup. */
+    DL_TimerA_setCCPDirection(PWM_L_INST,
+        DL_TIMER_CC0_OUTPUT | DL_TIMER_CC2_OUTPUT);
 }
 
 /* ── PWM right motor (TIMA1, 80 MHz / 1 / 4000 = 20 kHz) ── */
@@ -397,7 +420,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_R_init(void)
     DL_TimerA_setCaptCompUpdateMethod(PWM_R_INST,
         DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
         DL_TIMERA_CAPTURE_COMPARE_0_INDEX);
-    DL_TimerA_setCaptureCompareValue(PWM_R_INST, 0,
+    DL_TimerA_setCaptureCompareValue(PWM_R_INST, 4000,
         DL_TIMER_CC_0_INDEX);
     DL_TimerA_setCaptureCompareOutCtl(PWM_R_INST,
         DL_TIMER_CC_OCTL_INIT_VAL_LOW,
@@ -407,10 +430,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_R_init(void)
     DL_TimerA_setCaptCompUpdateMethod(PWM_R_INST,
         DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
         DL_TIMERA_CAPTURE_COMPARE_1_INDEX);
-    DL_TimerA_setCaptureCompareValue(PWM_R_INST, 0,
+    DL_TimerA_setCaptureCompareValue(PWM_R_INST, 4000,
         DL_TIMER_CC_1_INDEX);
+    DL_TimerA_setCCPOutputDisabled(PWM_R_INST,
+        DL_TIMER_CCP_DIS_OUT_LOW, DL_TIMER_CCP_DIS_OUT_LOW);
     DL_TimerA_enableClock(PWM_R_INST);
-    DL_TimerA_setCCPDirection(PWM_R_INST, DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT);
+    DL_TimerA_setCCPDirection(PWM_R_INST, DL_TIMER_CC0_OUTPUT);
 }
 
 /* ── ADC motor current ── */
@@ -434,6 +459,31 @@ SYSCONFIG_WEAK void SYSCFG_DL_ADC_MOTOR_init(void)
         DL_ADC12_WINDOWS_COMP_MODE_DISABLED);
     DL_ADC12_setSampleTime0(ADC_MOTOR_INST, 8);
     DL_ADC12_enableConversions(ADC_MOTOR_INST);
+}
+
+/* Track sensor ADC (ADC1 MEM0, PA16/A1_1 via carrier flywire). */
+SYSCONFIG_WEAK void SYSCFG_DL_ADC_TRACK_init(void)
+{
+    DL_ADC12_setClockConfig(ADC_TRACK_INST,
+        (DL_ADC12_ClockConfig *)&gADC_MOTORClockConfig);
+    DL_ADC12_initSingleSample(ADC_TRACK_INST,
+        DL_ADC12_REPEAT_MODE_DISABLED,
+        DL_ADC12_SAMPLING_SOURCE_AUTO,
+        DL_ADC12_TRIG_SRC_SOFTWARE,
+        DL_ADC12_SAMP_CONV_RES_12_BIT,
+        DL_ADC12_SAMP_CONV_DATA_FORMAT_UNSIGNED);
+    DL_ADC12_configConversionMem(ADC_TRACK_INST, ADC_TRACK_ADCMEM_0,
+        DL_ADC12_INPUT_CHAN_1,
+        DL_ADC12_REFERENCE_VOLTAGE_VDDA,
+        DL_ADC12_SAMPLE_TIMER_SOURCE_SCOMP0,
+        DL_ADC12_AVERAGING_MODE_DISABLED,
+        DL_ADC12_BURN_OUT_SOURCE_DISABLED,
+        DL_ADC12_TRIGGER_MODE_AUTO_NEXT,
+        DL_ADC12_WINDOWS_COMP_MODE_DISABLED);
+    DL_ADC12_setPowerDownMode(
+        ADC_TRACK_INST, DL_ADC12_POWER_DOWN_MODE_MANUAL);
+    DL_ADC12_setSampleTime0(ADC_TRACK_INST, 500);
+    DL_ADC12_enableConversions(ADC_TRACK_INST);
 }
 
 /* ── SPI BMI088 (SPI0, 10 MHz: 80 MHz / ((1+3)*2)) ── */

@@ -77,12 +77,14 @@ include_directories(
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088
     ${KNEXUS_COMMON_USER_DIR}/drv/dm_imu_l1
     ${KNEXUS_COMMON_USER_DIR}/drv/drv8701e
+    ${KNEXUS_COMMON_USER_DIR}/drv/dji_motor
     ${KNEXUS_COMMON_USER_DIR}/drv/jc_driver
     ${KNEXUS_COMMON_USER_DIR}/drv/encoder
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
     ${KNEXUS_COMMON_USER_DIR}/drv/led
     ${KNEXUS_COMMON_USER_DIR}/drv/key
     ${KNEXUS_COMMON_USER_DIR}/drv/beep
+    ${KNEXUS_COMMON_USER_DIR}/drv/oled
     # platform: shared headers (common) + STM32 implementation
     ${KNEXUS_COMMON_USER_DIR}/platform/include
     User/platform/stm32h743
@@ -90,6 +92,7 @@ include_directories(
     User/board/knexus_stm32h743
     # modules (common)
     ${KNEXUS_COMMON_USER_DIR}/modules/motor
+    ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl
     ${KNEXUS_COMMON_USER_DIR}/modules/imu
     ${KNEXUS_COMMON_USER_DIR}/modules/ctrl
     ${KNEXUS_COMMON_USER_DIR}/modules/telemetry
@@ -164,7 +167,6 @@ if(KNEXUS_APP STREQUAL "contest_2026")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/gimbal/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/vision/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/drv/jc_driver/")
-    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/drv/dm_imu_l1/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/test_modes/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/knx_app_superloop\\.c$")
 endif()

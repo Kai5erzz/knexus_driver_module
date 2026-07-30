@@ -1,5 +1,7 @@
 #include "knx_track.h"
 #include "knx_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <string.h>
 
 static knx_track_state_t s_track;
@@ -18,16 +20,34 @@ void knx_track_init(void)
 
 knx_status_t knx_track_update(void)
 {
-    s_track.last_status = knx_grayscale_update();
-    knx_grayscale_snapshot(&s_track.sensor);
-    s_track.line_strength = 0.0f;
-    for (uint8_t i = 0U; i < KNX_GRAYSCALE_CH_NUM; ++i) {
-        s_track.line_strength += s_track.sensor.normalized[i];
+    knx_status_t status = knx_grayscale_update();
+    if (status != KNX_OK) {
+        /* Preserve the last complete frame and its timestamp.  Consumers can
+         * tolerate an isolated ADC timeout and still detect a sustained loss
+         * by checking the age of the last successful sample. */
+        taskENTER_CRITICAL();
+        s_track.last_status = status;
+        taskEXIT_CRITICAL();
+        return status;
     }
-    s_track.line_lost = (s_track.line_strength < 0.15f);
-    s_track.timestamp_ms = knx_millis();
-    s_track.update_count++;
-    return s_track.last_status;
+
+    knx_track_state_t next;
+    taskENTER_CRITICAL();
+    next = s_track;
+    taskEXIT_CRITICAL();
+    next.last_status = status;
+    knx_grayscale_snapshot(&next.sensor);
+    next.line_strength = 0.0f;
+    for (uint8_t i = 0U; i < KNX_GRAYSCALE_CH_NUM; ++i) {
+        next.line_strength += next.sensor.normalized[i];
+    }
+    next.line_lost = (next.line_strength < 0.15f);
+    next.timestamp_ms = knx_millis();
+    next.update_count++;
+    taskENTER_CRITICAL();
+    s_track = next;
+    taskEXIT_CRITICAL();
+    return KNX_OK;
 }
 
 static void apply_calibration_if_ready(void)
@@ -40,7 +60,9 @@ static void apply_calibration_if_ready(void)
 knx_status_t knx_track_capture_black(void)
 {
     (void)knx_track_update();
-    memcpy(s_black, s_track.sensor.raw, sizeof(s_black));
+    knx_track_state_t snapshot;
+    knx_track_snapshot(&snapshot);
+    memcpy(s_black, snapshot.sensor.raw, sizeof(s_black));
     s_have_black = true;
     apply_calibration_if_ready();
     return KNX_OK;
@@ -49,7 +71,9 @@ knx_status_t knx_track_capture_black(void)
 knx_status_t knx_track_capture_white(void)
 {
     (void)knx_track_update();
-    memcpy(s_white, s_track.sensor.raw, sizeof(s_white));
+    knx_track_state_t snapshot;
+    knx_track_snapshot(&snapshot);
+    memcpy(s_white, snapshot.sensor.raw, sizeof(s_white));
     s_have_white = true;
     apply_calibration_if_ready();
     return KNX_OK;
@@ -68,5 +92,8 @@ void knx_track_set_calibration(const uint16_t black[KNX_GRAYSCALE_CH_NUM],
 
 void knx_track_snapshot(knx_track_state_t *out)
 {
-    if (out != NULL) *out = s_track;
+    if (out == NULL) return;
+    taskENTER_CRITICAL();
+    *out = s_track;
+    taskEXIT_CRITICAL();
 }

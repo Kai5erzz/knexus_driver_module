@@ -52,6 +52,27 @@ knx_status_t knx_chassis_set_wheel_speed(float left_mps, float right_mps)
     return s_state.last_status;
 }
 
+knx_status_t knx_chassis_set_position(float position_m)
+{
+    if (!s_state.enabled) return KNX_NOT_READY;
+    s_state.last_status = knx_drive_set_position(position_m);
+    return s_state.last_status;
+}
+
+knx_status_t knx_chassis_set_angle(float heading_rad)
+{
+    if (!s_state.enabled) return KNX_NOT_READY;
+    s_state.last_status = knx_drive_set_angle(heading_rad);
+    return s_state.last_status;
+}
+
+knx_status_t knx_chassis_set_position_angle(float position_m, float heading_rad)
+{
+    if (!s_state.enabled) return KNX_NOT_READY;
+    s_state.last_status = knx_drive_set_position_angle(position_m, heading_rad);
+    return s_state.last_status;
+}
+
 knx_status_t knx_chassis_update_fast(void)
 {
     s_state.fast_updates++;

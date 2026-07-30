@@ -1,15 +1,17 @@
-{
-  "mcpServers": {
-    "octolink": {
-      "args": [
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "48731"
-      ],
-      "command": "\\\\?\\D:\\User\\Project\\OctoLink\\ver_000\\octolink\\src-tauri\\target\\debug\\resources\\octolink-mcp-proxy.exe",
-      "env": {},
-      "type": "stdio"
-    }
-  }
+﻿{
+    "mcpServers":  {
+                       "octolink":  {
+                                        "args":  [
+                                                     "--host",
+                                                     "127.0.0.1",
+                                                     "--port",
+                                                     "48731"
+                                                 ],
+                                        "env":  {
+
+                                                },
+                                        "command":  "D:\\User\\Project\\OctoLink\\ver_000\\octolink\\src-tauri\\target\\debug\\octolink-mcp-proxy.exe",
+                                        "type":  "stdio"
+                                    }
+                   }
 }

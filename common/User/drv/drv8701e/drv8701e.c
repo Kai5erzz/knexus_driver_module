@@ -11,6 +11,7 @@
  */
 
 #include "drv8701e.h"
+#include "knexus_config.h"
 #include "encoder.h"
 #include "PID.h"
 #include "knx_time.h"
@@ -124,9 +125,9 @@ float drv8701e_current_sample_fraction = 0.50f;
 float drv8701e_current_sample_min_cnt = 20.0f;
 float drv8701e_current_sample_default_cnt = 250.0f;
 uint32_t drv8701e_current_sample_compare_cnt = 250U;
-float drv8701e_velocity_kv_cnt_per_mps = 500.0f;
-float drv8701e_velocity_duty_deadzone_cnt = 450.0f;
-float drv8701e_velocity_acc_limit_mps2 = 0.35f;
+float drv8701e_velocity_kv_cnt_per_mps = KNEXUS_MOTOR_FEEDFORWARD_CNT_PER_MPS_DEFAULT;
+float drv8701e_velocity_duty_deadzone_cnt = KNEXUS_MOTOR_DUTY_DEADZONE_CNT_DEFAULT;
+float drv8701e_velocity_acc_limit_mps2 = KNEXUS_MOTOR_ACCEL_LIMIT_MPS2_DEFAULT;
 
 /* ==================== 绉佹湁鍑芥暟 ==================== */
 static float DRV8701E_LPF_CalcAlpha(float cutoff_hz, float sample_hz)
@@ -536,9 +537,9 @@ void DRV8701E_Current_CalibrateZero(uint16_t samples, uint32_t timeout_ms)
 
 void DRV8701E_VelocityInit(void)
 {
-    vc_left.kp = 1500.0f;
-    vc_left.ki = 120.0f;
-    vc_left.kd = 0.0f;
+    vc_left.kp = KNEXUS_MOTOR_LEFT_KP_DEFAULT;
+    vc_left.ki = KNEXUS_MOTOR_LEFT_KI_DEFAULT;
+    vc_left.kd = KNEXUS_MOTOR_LEFT_KD_DEFAULT;
     vc_left.target = 0.0f;
     vc_left.target_used = 0.0f;
     vc_left.integral = 0.0f;
@@ -548,15 +549,15 @@ void DRV8701E_VelocityInit(void)
     vc_left.output = 0.0f;
     vc_left.out_min = -6000.0f;
     vc_left.out_max =  6000.0f;
-    vc_left.integral_max = 1500.0f;
+    vc_left.integral_max = KNEXUS_MOTOR_INTEGRAL_MAX_DEFAULT;
     vc_left.last_ramp_tick_ms = knx_millis();
     if (vc_left.rm_pid != NULL) {
         pid_clear((pid_obj_t *)vc_left.rm_pid);
     }
 
-    vc_right.kp = 1500.0f;
-    vc_right.ki = 120.0f;
-    vc_right.kd = 0.0f;
+    vc_right.kp = KNEXUS_MOTOR_RIGHT_KP_DEFAULT;
+    vc_right.ki = KNEXUS_MOTOR_RIGHT_KI_DEFAULT;
+    vc_right.kd = KNEXUS_MOTOR_RIGHT_KD_DEFAULT;
     vc_right.target = 0.0f;
     vc_right.target_used = 0.0f;
     vc_right.integral = 0.0f;
@@ -566,7 +567,7 @@ void DRV8701E_VelocityInit(void)
     vc_right.output = 0.0f;
     vc_right.out_min = -6000.0f;
     vc_right.out_max =  6000.0f;
-    vc_right.integral_max = 1500.0f;
+    vc_right.integral_max = KNEXUS_MOTOR_INTEGRAL_MAX_DEFAULT;
     vc_right.last_ramp_tick_ms = knx_millis();
     if (vc_right.rm_pid != NULL) {
         pid_clear((pid_obj_t *)vc_right.rm_pid);

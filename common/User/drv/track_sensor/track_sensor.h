@@ -7,16 +7,14 @@
  *
  * 硬件连接:
  *   多路复用器地址线:
- *     - AD0: PB4 (TRACK_AD0) - 地址位0
- *     - AD1: PB5 (TRACK_AD1) - 地址位1
- *     - AD2: PB7 (TRACK_AD2) - 地址位2
+ *     - AD0/AD1/AD2: 由各平台 board 层绑定
  *   ADC输入:
- *     - TRACK_ADC: PC5 (ADC2_INP8) - 模拟输入
+ *     - 由各平台 board 层绑定到独立循迹 ADC
  *
  * 说明:
  *   - 3根地址线选择8个通道 (0-7)
  *   - 每个通道对应一个灰度传感器
- *   - 使用ADC2独立采样, 不影响ADC1电机电流采样
+ *   - 循迹 ADC 与电机电流 ADC 由平台层分别配置
  *   - 原始ADC值 (16-bit, 0-65535) 直接存储
  *   - 不做归一化处理
  */
@@ -42,10 +40,10 @@
  * 驱动层只通过 knx_gpio_write / knx_adc_read_raw 访问硬件。
  */
 typedef struct {
-    knx_gpio_t       mux_ad0;     /**< 多路复用器地址线0 (PB4) */
-    knx_gpio_t       mux_ad1;     /**< 多路复用器地址线1 (PB5) */
-    knx_gpio_t       mux_ad2;     /**< 多路复用器地址线2 (PB7) */
-    knx_adc_channel_t adc;        /**< ADC2 (hadc2, timeout=1ms) */
+    knx_gpio_t       mux_ad0;     /**< 多路复用器地址线0 */
+    knx_gpio_t       mux_ad1;     /**< 多路复用器地址线1 */
+    knx_gpio_t       mux_ad2;     /**< 多路复用器地址线2 */
+    knx_adc_channel_t adc;        /**< 平台循迹 ADC */
 } track_sensor_port_t;
 
 /* ==================== 全局数据 ==================== */
@@ -59,6 +57,10 @@ typedef struct {
  *         值域: 0-65535 (16-bit ADC原始值)
  */
 extern uint16_t track_raw[TRACK_SENSOR_CHANNELS];
+extern volatile int32_t track_scan_last_status;
+extern volatile uint32_t track_scan_ok_count;
+extern volatile uint32_t track_scan_error_count;
+extern volatile uint32_t track_scan_last_completed_channel;
 
 /* ==================== 接口函数 ==================== */
 
@@ -78,7 +80,7 @@ void TrackSensor_Init(void);
 /**
  * @brief  扫描所有8个通道并更新track_raw数组
  * @retval knx_status_t
- * @note   使用ADC2独立采样, 不影响ADC1电机电流采样
+ * @note   ADC 实例由 board 层绑定
  */
 knx_status_t TrackSensor_Scan(void);
 

@@ -1,6 +1,8 @@
 #include "knx_intersection.h"
 #include "knx_target_config.h"
 #include "knx_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <string.h>
 
 #if defined(KNX_PLATFORM_STM32)
@@ -43,7 +45,9 @@ static uint8_t bit_count(uint8_t value)
 knx_status_t knx_intersection_update(const knx_track_state_t *track)
 {
     if (track == NULL) return KNX_INVALID_ARG;
+    taskENTER_CRITICAL();
     s_result.fresh = false;
+    taskEXIT_CRITICAL();
     if (track->line_lost) return KNX_NOT_READY;
 
     for (uint8_t col = 0U; col < TRACK_NN_COLS; ++col) {
@@ -56,9 +60,10 @@ knx_status_t knx_intersection_update(const knx_track_state_t *track)
 #if KNX_INTERSECTION_USE_NN
     track_tinycnn_result_t prediction = {0};
     track_tinycnn_predict_u8(s_window, &prediction);
-    s_result.type = (prediction.pred_class == 0U) ?
-                    KNX_INTERSECTION_NORMAL : KNX_INTERSECTION_COMPLEX;
-    s_result.confidence = prediction.confidence;
+    knx_intersection_class_t type = (prediction.pred_class == 0U) ?
+                                    KNX_INTERSECTION_NORMAL :
+                                    KNX_INTERSECTION_COMPLEX;
+    float confidence = prediction.confidence;
 #else
     /* MSPM0 fallback: preserve API parity without the STM32 model footprint.
      * Wide activation is treated as a candidate complex intersection. */
@@ -70,22 +75,34 @@ knx_status_t knx_intersection_update(const knx_track_state_t *track)
         }
         if (bit_count(bits) >= 5U) wide_rows++;
     }
-    s_result.type = (wide_rows >= 6U) ? KNX_INTERSECTION_COMPLEX : KNX_INTERSECTION_NORMAL;
-    s_result.confidence = (float)((wide_rows >= 6U) ? wide_rows : (TRACK_NN_ROWS - wide_rows)) /
-                          (float)TRACK_NN_ROWS;
+    knx_intersection_class_t type = (wide_rows >= 6U) ?
+                                    KNX_INTERSECTION_COMPLEX :
+                                    KNX_INTERSECTION_NORMAL;
+    float confidence =
+        (float)((wide_rows >= 6U) ? wide_rows : (TRACK_NN_ROWS - wide_rows)) /
+        (float)TRACK_NN_ROWS;
 #endif
+    taskENTER_CRITICAL();
+    s_result.type = type;
+    s_result.confidence = confidence;
     s_result.inference_count++;
     s_result.timestamp_ms = knx_millis();
     s_result.fresh = true;
+    taskEXIT_CRITICAL();
     return KNX_OK;
 }
 
 void knx_intersection_snapshot(knx_intersection_result_t *out)
 {
-    if (out != NULL) *out = s_result;
+    if (out == NULL) return;
+    taskENTER_CRITICAL();
+    *out = s_result;
+    taskEXIT_CRITICAL();
 }
 
 void knx_intersection_clear_fresh(void)
 {
+    taskENTER_CRITICAL();
     s_result.fresh = false;
+    taskEXIT_CRITICAL();
 }

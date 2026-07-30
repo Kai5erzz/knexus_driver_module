@@ -48,6 +48,22 @@ static pid_obj_t *register_pid(const knx_pid_params_t *params)
     return pid_register(&config);
 }
 
+static void sync_pid(pid_obj_t *pid, const knx_pid_params_t *params)
+{
+    if (pid == NULL || params == NULL) {
+        return;
+    }
+
+    pid->Kp = params->kp;
+    pid->Ki = params->ki;
+    pid->Kd = params->kd;
+    pid->MaxOut = params->max_out;
+    pid->IntegralLimit = params->integral_limit;
+    pid->DeadBand = params->deadband;
+    pid->Improve = PID_Integral_Limit;
+    pid_clear(pid);
+}
+
 static void clear_controllers(void)
 {
     if (s_position_pid != NULL) {
@@ -115,15 +131,19 @@ static void update_odometry(float dt_s)
     (void)dt_s;
 }
 
-static void set_drive_mode(knx_drive_mode_t mode)
+static knx_status_t set_drive_mode(knx_drive_mode_t mode)
 {
+    knx_status_t status = knx_sys_set_mode(KNX_RUN_MODE_SPEED);
+    if (status != KNX_OK) {
+        return status;
+    }
+
     taskENTER_CRITICAL();
     s_drive_state.mode = mode;
     s_drive_state.last_command_ms = knx_millis();
     s_drive_state.command_active = true;
     taskEXIT_CRITICAL();
-
-    (void)knx_sys_set_mode(KNX_RUN_MODE_SPEED);
+    return KNX_OK;
 }
 
 static void update_profile(float *value, float target, float max_step)
@@ -145,6 +165,14 @@ knx_status_t knx_drive_init(void)
     s_last_left_position_m = encoder_left.position_m * g_knx_params.drive.left_feedback_sign;
     s_last_right_position_m = encoder_right.position_m * g_knx_params.drive.right_feedback_sign;
     return KNX_OK;
+}
+
+void knx_drive_reload_params(void)
+{
+    sync_pid(s_position_pid, &g_knx_params.drive.position_pid);
+    sync_pid(s_angle_pid, &g_knx_params.drive.angle_pid);
+    sync_pid(s_linear_speed_pid, &g_knx_params.drive.linear_speed_pid);
+    sync_pid(s_angular_speed_pid, &g_knx_params.drive.angular_speed_pid);
 }
 
 knx_status_t knx_drive_update(float dt_s)
@@ -170,7 +198,10 @@ knx_status_t knx_drive_update(float dt_s)
     local = s_drive_state;
     taskEXIT_CRITICAL();
 
-    if (local.mode != KNX_DRIVE_MODE_IDLE &&
+    /* Velocity commands must be refreshed by the remote/user task. Position
+     * and angle moves are finite goals and remain active until reached or
+     * explicitly stopped by their supervising state machine. */
+    if (local.mode == KNX_DRIVE_MODE_VELOCITY &&
         (!local.command_active ||
          (knx_millis() - local.last_command_ms) > g_knx_params.drive.command_timeout_ms)) {
         (void)knx_drive_stop();
@@ -207,10 +238,15 @@ knx_status_t knx_drive_update(float dt_s)
                    angular_ref,
                    g_knx_params.drive.max_angular_accel_radps2 * dt_s);
 
-    float linear_cmd = pid_calculate(s_linear_speed_pid,
+    /* The speed PIDs are feedback corrections, not complete commands.
+     * Omitting the reference feed-forward makes a proportional loop settle
+     * at Kp/(1+Kp) of the requested speed (0.8 -> only 44%). */
+    float linear_cmd = profiled_linear +
+                       pid_calculate(s_linear_speed_pid,
                                      local.measured_linear_mps,
                                      profiled_linear);
-    float angular_cmd = pid_calculate(s_angular_speed_pid,
+    float angular_cmd = profiled_angular +
+                        pid_calculate(s_angular_speed_pid,
                                       local.measured_angular_radps,
                                       profiled_angular);
 
@@ -262,8 +298,7 @@ knx_status_t knx_drive_set_velocity(float linear_mps, float angular_radps)
     s_drive_state.target_angular_radps = angular;
     taskEXIT_CRITICAL();
 
-    set_drive_mode(KNX_DRIVE_MODE_VELOCITY);
-    return KNX_OK;
+    return set_drive_mode(KNX_DRIVE_MODE_VELOCITY);
 }
 
 knx_status_t knx_drive_set_position(float position_m)
@@ -278,8 +313,7 @@ knx_status_t knx_drive_set_position(float position_m)
     taskEXIT_CRITICAL();
 
     clear_controllers();
-    set_drive_mode(KNX_DRIVE_MODE_POSITION);
-    return KNX_OK;
+    return set_drive_mode(KNX_DRIVE_MODE_POSITION);
 }
 
 knx_status_t knx_drive_set_angle(float heading_rad)
@@ -294,8 +328,7 @@ knx_status_t knx_drive_set_angle(float heading_rad)
     taskEXIT_CRITICAL();
 
     clear_controllers();
-    set_drive_mode(KNX_DRIVE_MODE_ANGLE);
-    return KNX_OK;
+    return set_drive_mode(KNX_DRIVE_MODE_ANGLE);
 }
 
 knx_status_t knx_drive_set_position_angle(float position_m, float heading_rad)
@@ -310,8 +343,7 @@ knx_status_t knx_drive_set_position_angle(float position_m, float heading_rad)
     taskEXIT_CRITICAL();
 
     clear_controllers();
-    set_drive_mode(KNX_DRIVE_MODE_POSITION_ANGLE);
-    return KNX_OK;
+    return set_drive_mode(KNX_DRIVE_MODE_POSITION_ANGLE);
 }
 
 knx_status_t knx_drive_stop(void)

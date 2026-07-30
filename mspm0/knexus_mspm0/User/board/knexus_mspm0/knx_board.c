@@ -52,23 +52,26 @@ static const knx_gpio_t s_debug_led = {
     .pin  = LED0_LED0_PIN_PIN,
 };
 
-/* ── Left encoder: hardware QEI on TIMG8 ── */
+/* Left encoder: software quadrature via GPIO EXTI on PA8/PA9. */
 static const knx_encoder_port_t s_encoder_left = {
-    .timer   = (void *)QEI_LEFT_INST,
-    .type    = KNX_ENCODER_MSPM0_QEI,
-    .channel = 0U,
-    .period  = 65535U,
-};
-
-/* ── Right encoder: software quadrature via GPIO EXTI ── */
-static const knx_encoder_port_t s_encoder_right = {
-    .timer   = (void *)1,       /* non-NULL sentinel — not dereferenced */
+    .timer   = (void *)1,
     .type    = KNX_ENCODER_MSPM0_EXTI,
     .channel = 0U,
     .period  = 0U,
 };
 
+/* Right encoder: hardware QEI on TIMG8, PA21/PA22. */
+static const knx_encoder_port_t s_encoder_right = {
+    .timer   = (void *)QEI_RIGHT_INST,
+    .type    = KNX_ENCODER_MSPM0_QEI,
+    .channel = 0U,
+    .period  = 65535U,
+};
+
 /* ── Motor driver ports (DRV8701E) ── */
+/* Reworked carrier wiring: left EN=PB8/SPI_CUSTOM_CS1, PHASE=PA7;
+ * right EN=PA15, PHASE=PA30.  Isolate the original PA0/L1_EN connection
+ * before flywiring PB8 to L1_EN. */
 static drv8701e_port_t s_drv_left = {
     .pwm        = { .timer = (void *)PWM_L_INST,        .channel = 0, .arr = 4000 },
     .phase_gpio = { .port  = (void *)MOTOR_L_PH_PORT,   .pin     = MOTOR_L_PH_ML_PHASE_PIN },
@@ -81,6 +84,13 @@ static drv8701e_port_t s_drv_right = {
     .phase_gpio = { .port  = (void *)MOTOR_R_PH_PORT,   .pin     = MOTOR_R_PH_MR_PHASE_PIN },
     .current_adc = { .adc  = (void *)ADC_MOTOR_INST,    .timeout_ms = 1 },
     .invert     = 0,
+};
+
+/* PB17/TIMA0 CC2 drives the active-high BMI088 heater MOSFET. */
+static const knx_pwm_channel_t s_bmi088_heater_pwm = {
+    .timer = (void *)PWM_HEATER_INST,
+    .channel = 2U,
+    .arr = 4000U,
 };
 
 /* ── UART for OctoLink ── */
@@ -109,18 +119,22 @@ static knx_can_t s_can = {
 
 /* ── Track sensor ── */
 static track_sensor_port_t s_track_sensor = {
-    .mux_ad0 = { .port = (void *)GPIOB, .pin = DL_GPIO_PIN_4 },
-    .mux_ad1 = { .port = (void *)GPIOB, .pin = DL_GPIO_PIN_5 },
-    .mux_ad2 = { .port = (void *)GPIOB, .pin = DL_GPIO_PIN_7 },
-    .adc     = { .adc  = (void *)ADC0,  .timeout_ms = 1 },
+    .mux_ad0 = { .port = (void *)TRK_AD0_PORT, .pin = TRK_AD0_AD0_PIN_PIN },
+    .mux_ad1 = { .port = (void *)TRK_AD1_PORT, .pin = TRK_AD1_AD1_PIN_PIN },
+    .mux_ad2 = { .port = (void *)TRK_AD2_PORT, .pin = TRK_AD2_AD2_PIN_PIN },
+    .adc     = { .adc  = (void *)ADC_TRACK_INST, .timeout_ms = 5 },
 };
+
+volatile uint32_t knx_mspm0_board_init_stage;
 
 /* ── init ── */
 knx_status_t knx_board_init(void)
 {
+    knx_mspm0_board_init_stage = 1U;
     knx_led_attach_ports(s_led_ports, KNX_LED_MAX_LEDS);
     knx_led_init();
 
+    knx_mspm0_board_init_stage = 2U;
     knx_key_attach_ports(s_key_ports, 2U);
     knx_key_init();
 
@@ -128,27 +142,39 @@ knx_status_t knx_board_init(void)
     knx_beep_init();
 
     Octolinker_Init(&s_octolinker, &s_debug_uart);
+    knx_mspm0_board_init_stage = 3U;
 
 #if KNX_APP_CONTEST_2026
     /* Contest runtime expects board_init() to complete all physical bindings,
      * matching the STM32 board contract. Module control loops start later. */
     DRV8701E_AttachPorts(&s_drv_left, &s_drv_right);
     DRV8701E_Init();
+    knx_mspm0_board_init_stage = 4U;
     (void)Encoder_AttachPorts(&s_encoder_left, &s_encoder_right);
     (void)Encoder_Init();
+    knx_mspm0_board_init_stage = 5U;
     TrackSensor_AttachPorts(&s_track_sensor);
     TrackSensor_Init();
+    knx_mspm0_board_init_stage = 6U;
     (void)knx_spi_init(&s_bmi088_accel_spi);
     (void)knx_spi_init(&s_bmi088_gyro_spi);
+    knx_mspm0_board_init_stage = 7U;
+    /* Start conservatively on the 12 V heater rail; tune upward from data. */
+    bmi088_heater_enable = 1.0f;
+    bmi088_temp_target_c = 40.0f;
+    bmi088_heater_duty_max = 0.18f;
+    BMI088_AttachHeater(&s_bmi088_heater_pwm);
     BMI088_Init(&s_bmi088_accel_spi, &s_bmi088_gyro_spi);
+    knx_mspm0_board_init_stage = 8U;
 #endif
 
+    knx_mspm0_board_init_stage = 9U;
     return KNX_OK;
 }
 
 void knx_board_post_init(void)
 {
-    /* Enable GPIOA GROUP1 interrupt for right-encoder edges.
+    /* Enable GPIOA GROUP1 interrupt for left-encoder edges.
      * The encoder GPIO + polarity was configured in SYSCFG_DL_GPIO_init(). */
     NVIC_EnableIRQ(GPIOA_INT_IRQn);
 }

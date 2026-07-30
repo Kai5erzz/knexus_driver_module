@@ -64,6 +64,9 @@ knx_status_t knx_can_transmit_std(knx_can_t *can,
 
     uint32_t start_ms = knx_millis();
     while ((DL_MCAN_getTxBufReqPend(regs) & 0x1U) != 0U) {
+        if (timeout_ms == 0U) {
+            return KNX_BUSY;
+        }
         if (timeout_elapsed(start_ms, timeout_ms) != 0U) {
             return KNX_TIMEOUT;
         }
@@ -87,6 +90,11 @@ knx_status_t knx_can_transmit_std(knx_can_t *can,
     DL_MCAN_writeMsgRam(regs, DL_MCAN_MEM_TYPE_BUF, 0U, &tx);
     if (DL_MCAN_TXBufAddReq(regs, 0U) != 0) {
         return KNX_ERROR;
+    }
+
+    /* Non-blocking mode reports success once the frame is queued. */
+    if (timeout_ms == 0U) {
+        return KNX_OK;
     }
 
     while ((DL_MCAN_getTxBufReqPend(regs) & 0x1U) != 0U) {

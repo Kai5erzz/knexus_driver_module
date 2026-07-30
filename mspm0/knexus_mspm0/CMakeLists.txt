@@ -45,8 +45,10 @@ set(COMMON_DRIVER_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/drv/encoder/encoder.c
     ${KNEXUS_COMMON_USER_DIR}/drv/octolinker/octolinker.c
     ${KNEXUS_COMMON_USER_DIR}/drv/drv8701e/drv8701e.c
+    ${KNEXUS_COMMON_USER_DIR}/drv/dji_motor/dji_motor.c
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088/bmi088.c
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor/track_sensor.c
+    ${KNEXUS_COMMON_USER_DIR}/drv/oled/OLED.c
 )
 
 # Common module/config sources.
@@ -60,6 +62,7 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/modules/health/knx_health.c
     ${KNEXUS_COMMON_USER_DIR}/modules/can_router/knx_can_router.c
     ${KNEXUS_COMMON_USER_DIR}/modules/motor/knx_motor.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl/knx_dji_motor_ctrl.c
     ${KNEXUS_COMMON_USER_DIR}/modules/drive/knx_drive.c
     ${KNEXUS_COMMON_USER_DIR}/modules/imu/knx_imu.c
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale/knx_grayscale.c
@@ -72,7 +75,16 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/modules/intersection/knx_intersection.c
     ${KNEXUS_COMMON_USER_DIR}/modules/comm/knx_comm.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx26_app.c
-    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx26_user.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_line_follow.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_h_hooks.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_h_oled_display.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knexus_mode.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_common.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_board_test.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_intersection_sample.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_pid_tune.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_screw_test.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_user.c
 )
 
 # Common algorithm sources.
@@ -125,6 +137,7 @@ add_executable(knexus_mspm0.elf
     main.c
     syscalls.c
     ti_msp_dl_config.c
+    boot_config.c
     ${STARTUP_FILE}
     ${FREERTOS_SOURCES}
     ${COMMON_DRIVER_SOURCES}
@@ -162,8 +175,10 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/drv/encoder
     ${KNEXUS_COMMON_USER_DIR}/drv/octolinker
     ${KNEXUS_COMMON_USER_DIR}/drv/drv8701e
+    ${KNEXUS_COMMON_USER_DIR}/drv/dji_motor
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
+    ${KNEXUS_COMMON_USER_DIR}/drv/oled
     ${KNEXUS_COMMON_USER_DIR}/util
     ${KNEXUS_COMMON_USER_DIR}/algorithm/crc
     ${KNEXUS_COMMON_USER_DIR}/algorithm/PID
@@ -176,6 +191,7 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/modules/health
     ${KNEXUS_COMMON_USER_DIR}/modules/can_router
     ${KNEXUS_COMMON_USER_DIR}/modules/motor
+    ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl
     ${KNEXUS_COMMON_USER_DIR}/modules/drive
     ${KNEXUS_COMMON_USER_DIR}/modules/imu
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale
@@ -188,6 +204,7 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/modules/intersection
     ${KNEXUS_COMMON_USER_DIR}/modules/comm
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes
     ${KNEXUS_COMMON_USER_DIR}/app/test_modes/test_drv8701e
 )
 

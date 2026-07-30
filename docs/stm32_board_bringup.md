@@ -1,4 +1,7 @@
-# STM32 新底板硬件验收测试
+# STM32 新底板硬件验收测试（旧入口）
+
+> 该旧测试已迁移到 `contest_2026` 的统一 `KNEXUS_MODE_BOARD_TEST`，并增加
+> MSPM0与循迹ADC支持。新代码请参阅 `docs/contest_2026/11_board_test.md`。
 
 STM32 当前选择的测试模式为 `KNX_ACTIVE_TEST_MODE_STM32_BOARD_BRINGUP`。
 该固件仅用于新底板硬件验收，不是正常的底盘或云台应用固件。

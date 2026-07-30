@@ -48,6 +48,8 @@ void knx_grayscale_set_calibration(const uint16_t *cal_min, const uint16_t *cal_
 {
     if (cal_min == NULL || cal_max == NULL) return;
 
+    /* 校准由 app 任务写入，track 任务读取；整组参数必须一次生效。 */
+    taskENTER_CRITICAL();
     for (uint8_t i = 0; i < KNX_GRAYSCALE_CH_NUM; i++) {
         s_data.cal_min[i] = cal_min[i];
         s_data.cal_max[i] = cal_max[i];
@@ -56,6 +58,7 @@ void knx_grayscale_set_calibration(const uint16_t *cal_min, const uint16_t *cal_
         }
     }
     s_data.is_calibrated = 1;
+    taskEXIT_CRITICAL();
 }
 
 knx_status_t knx_grayscale_update(void)

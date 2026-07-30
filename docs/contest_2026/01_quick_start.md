@@ -16,9 +16,9 @@ MSPM0 产物是 `knexus_mspm0.elf/hex/bin`。
 ## 第一次运行
 
 1. 架空车轮，上电后确认 LED0 每 500 ms 翻转。
-2. 在 `knx26_user_init()` 中调用 `knx_chassis_enable()`。
-3. 使用 `knx_chassis_set_velocity()` 给出低速命令。
-4. OctoLink 观察变量 `700..716`。
+2. 在 `common/User/config/knexus_config.h` 中选择工作模式。
+3. 默认巡线模式下用 KEY0 完成黑线/白底校准，再按 KEY1 启动。
+4. 需要调试时打开 `KNEXUS_DEBUG_OCTOLINK_ENABLE`，观察对应模式变量。
 5. KEY1 或安全故障应立即使目标速度归零。
 
 默认速度命令有超时保护；上层必须周期刷新运动命令。

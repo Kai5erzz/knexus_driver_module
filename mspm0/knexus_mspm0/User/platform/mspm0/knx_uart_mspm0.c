@@ -31,9 +31,12 @@ knx_status_t knx_uart_transmit(knx_uart_t *uart,
     }
 
     UART_Regs *regs = (UART_Regs *)uart->handle;
-    uint32_t start_ms = knx_millis();
-
     for (uint32_t i = 0U; i < len; i++) {
+        /* The timeout applies to a stalled FIFO, not to the complete frame.
+         * A low-priority telemetry task may be preempted between bytes; using
+         * one frame-wide start time could then abort after a partial frame and
+         * desynchronize the OctoLink decoder. */
+        uint32_t start_ms = knx_millis();
         while (DL_UART_isTXFIFOFull(regs)) {
             if (timeout_elapsed(start_ms, timeout_ms) != 0U) {
                 return KNX_TIMEOUT;

@@ -68,6 +68,7 @@ static volatile uint32_t board_host_uart_error_count;
 static volatile uint32_t board_host_uart_error_code;
 static volatile uint32_t board_host_uart_rx_state;
 static volatile uint32_t board_host_uart_start_status;
+volatile uint32_t knx_stm32_reset_cause;
 
 #define BOARD_HOST_RX_RING_SIZE 512U
 static uint8_t board_host_rx_ring[BOARD_HOST_RX_RING_SIZE];
@@ -291,6 +292,12 @@ static void knx_board_dm_imu_l1_can_route(uint32_t std_id,
 
 knx_status_t knx_board_init(void)
 {
+    /* RSR会保留上一次复位来源。先保存供OctoLink诊断，再清标志。 */
+    knx_stm32_reset_cause = RCC->RSR;
+    RCC->RSR |= RCC_RSR_RMVF;
+    /* IWDG在看门狗复位后仍可能继续运行，尽早重装计数器，避免传感器
+     * 初始化期间再次复位。首次上电尚未启动IWDG时写该键无副作用。 */
+    IWDG1->KR = 0xAAAAU;
     /* Init debug output */
     Octolinker_Init(&board_octolinker, &board_debug_uart);
 
@@ -354,11 +361,14 @@ knx_status_t knx_board_init(void)
     knx_beep_attach_port(beep_gpio);
     knx_beep_init();
 
-    /* IWDG init via direct register access (LSI ~32kHz, prescaler /32 → 1kHz, reload=200 → 200ms) */
-    IWDG1->KR  = 0xCCCCU;   /* Start IWDG */
-    IWDG1->PR  = 3U;        /* Prescaler /32 → 1kHz tick */
-    IWDG1->RLR = 200U;      /* Reload value → 200ms timeout */
-    IWDG1->KR  = 0xAAAAU;   /* Reload counter (first feed) */
+    /* LSI约32kHz，/32后约1kHz，500计数约500ms。PR/RLR受写保护，
+     * 必须先写0x5555解锁；旧代码遗漏该步骤，实际超时并不等于注释值。 */
+    IWDG1->KR  = 0xCCCCU;   /* 启动IWDG */
+    IWDG1->KR  = 0x5555U;   /* 允许修改PR/RLR */
+    IWDG1->PR  = 3U;        /* 预分频/32 */
+    IWDG1->RLR = 500U;      /* 约500ms超时 */
+    while ((IWDG1->SR & (IWDG_SR_PVU | IWDG_SR_RVU)) != 0U) {}
+    IWDG1->KR  = 0xAAAAU;   /* 首次喂狗 */
 
     return KNX_OK;
 }
@@ -480,8 +490,6 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         knx_board_host_comm_start_rx();
     }
 }
-
-
 
 
 

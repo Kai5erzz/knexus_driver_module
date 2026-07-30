@@ -13,6 +13,7 @@
  */
 
 #include "bmi088.h"
+#include "knexus_config.h"
 #include "knx_time.h"
 #include "PID.h"
 #include <math.h>
@@ -38,18 +39,19 @@ static uint32_t bmi088_debug_count = 0;
 /* ==================== 加热温控 (PI) ==================== */
 
 /* 调参全局变量, Octo/GDB 可直接修�?*/
-float bmi088_heater_enable   = 1.0f;
-float bmi088_temp_target_c   = 40.0f;
-float bmi088_temp_kp         = 0.05f;
-float bmi088_temp_ki         = 0.03f;
-float bmi088_heater_duty_max = 0.30f;   /* 最�?30% 占空�? 保守防过�?*/
+float bmi088_heater_enable   = KNEXUS_BMI088_HEATER_ENABLE_DEFAULT;
+float bmi088_temp_target_c   = KNEXUS_BMI088_TEMP_TARGET_C_DEFAULT;
+float bmi088_temp_kp         = KNEXUS_BMI088_TEMP_KP_DEFAULT;
+float bmi088_temp_ki         = KNEXUS_BMI088_TEMP_KI_DEFAULT;
+float bmi088_heater_duty_max = KNEXUS_BMI088_HEATER_MAX_DUTY_DEFAULT;
 float bmi088_heater_duty     = 0.0f;    /* 当前输出 (只读) */
+
+float bmi088_heater_feedforward = KNEXUS_BMI088_HEATER_FEEDFORWARD_DEFAULT;
 
 static knx_pwm_channel_t s_heater_pwm;
 static uint8_t s_heater_attached = 0;
 static float s_heater_integral = 0.0f;
 static uint32_t s_heater_last_ms = 0;
-static pid_obj_t *s_heater_pid = NULL;
 
 /* ==================== SPI 底层 (带错误计�? ==================== */
 
@@ -426,9 +428,6 @@ void BMI088_AttachHeater(const knx_pwm_channel_t *heater_pwm)
     s_heater_integral = 0.0f;
     s_heater_last_ms = knx_millis();
     bmi088_heater_duty = 0.0f;
-    if (s_heater_pid != NULL) {
-        pid_clear(s_heater_pid);
-    }
 }
 
 static void bmi088_heater_update(void)
@@ -440,26 +439,33 @@ static void bmi088_heater_update(void)
         bmi088_heater_duty = 0.0f;
         s_heater_integral = 0.0f;
         s_heater_last_ms = knx_millis();
-        if (s_heater_pid != NULL) {
-            pid_clear(s_heater_pid);
-        }
         knx_pwm_set_duty(&s_heater_pwm, 0.0f);
         return;
     }
 
     /* 温度读取失败时不�?(保留上次输出) */
-    if (!imu_data.accel_ok) return;
+    if (!imu_data.accel_ok || imu_data.temperature < -40.0f ||
+        imu_data.temperature > 85.0f) {
+        bmi088_heater_duty = 0.0f;
+        s_heater_integral = 0.0f;
+        s_heater_last_ms = knx_millis();
+        knx_pwm_set_duty(&s_heater_pwm, 0.0f);
+        return;
+    }
 
+    uint32_t now = knx_millis();
+    uint32_t elapsed_ms = now - s_heater_last_ms;
+    s_heater_last_ms = now;
+    float dt_s = (elapsed_ms > 0U && elapsed_ms <= 250U)
+                   ? ((float)elapsed_ms * 0.001f)
+                   : 0.001f;
     float error = bmi088_temp_target_c - imu_data.temperature;
 
     /* 温度高于目标: duty=0, 不积�?*/
-    if (error <= 0.0f) {
+    if (imu_data.temperature >= 43.0f) {
         bmi088_heater_duty = 0.0f;
         knx_pwm_set_duty(&s_heater_pwm, 0.0f);
         s_heater_integral = 0.0f;
-        if (s_heater_pid != NULL) {
-            pid_clear(s_heater_pid);
-        }
         return;
     }
 
@@ -467,32 +473,26 @@ static void bmi088_heater_update(void)
     if (duty_max < 0.0f) duty_max = 0.0f;
     if (duty_max > 1.0f) duty_max = 1.0f;
 
-    if (s_heater_pid == NULL) {
-        pid_config_t config = INIT_PID_CONFIG(bmi088_temp_kp,
-                                              bmi088_temp_ki,
-                                              0.0f,
-                                              duty_max,
-                                              duty_max,
-                                              PID_Integral_Limit);
-        s_heater_pid = pid_register(&config);
+    /* Time-scaled PI with conditional integration. */
+    float candidate_i = s_heater_integral + bmi088_temp_ki * error * dt_s;
+    const float integral_limit = 0.02f;
+    if (candidate_i < -integral_limit) candidate_i = -integral_limit;
+    if (candidate_i > integral_limit) candidate_i = integral_limit;
+
+    float candidate_duty = bmi088_heater_feedforward +
+                           bmi088_temp_kp * error + candidate_i;
+    if ((candidate_duty > duty_max && error > 0.0f) ||
+        (candidate_duty < 0.0f && error < 0.0f)) {
+        candidate_i = s_heater_integral;
     }
-    if (s_heater_pid == NULL) return;
+    s_heater_integral = candidate_i;
 
-    s_heater_pid->Kp = bmi088_temp_kp;
-    s_heater_pid->Ki = bmi088_temp_ki;
-    s_heater_pid->Kd = 0.0f;
-    s_heater_pid->MaxOut = duty_max;
-    s_heater_pid->IntegralLimit = duty_max;
-    s_heater_pid->Improve = PID_Integral_Limit;
-    s_heater_pid->DeadBand = 0.0f;
-
-    float duty = pid_calculate(s_heater_pid, imu_data.temperature, bmi088_temp_target_c);
+    float duty = bmi088_heater_feedforward +
+                 bmi088_temp_kp * error + s_heater_integral;
     if (duty < 0.0f) duty = 0.0f;
     if (duty > duty_max) duty = duty_max;
 
     bmi088_heater_duty = duty;
-    s_heater_integral = s_heater_pid->Iout;
-    s_heater_last_ms = knx_millis();
     knx_pwm_set_duty(&s_heater_pwm, duty);
 }
 
@@ -711,4 +711,16 @@ void BMI088_DebugOcto(Octolinker_Instance_t *octo)
     /* 加热温控调试通道 */
     Octolinker_SendF32(octo, 24, bmi088_temp_target_c);
     Octolinker_SendF32(octo, 25, bmi088_heater_duty);
+    Octolinker_SendF32(octo, 26, bmi088_heater_enable);
+    Octolinker_SendF32(octo, 27, bmi088_temp_kp);
+    Octolinker_SendF32(octo, 28, bmi088_temp_ki);
+    Octolinker_SendF32(octo, 29, bmi088_heater_duty_max);
+    Octolinker_SendU8(octo, 30, s_heater_attached);
+    Octolinker_SendF32(octo, 31, s_heater_integral);
+    Octolinker_SendU8(octo, 32, imu_data.accel_ok);
+    Octolinker_SendU8(octo, 33, imu_data.gyro_ok);
+    Octolinker_SendU32(octo, 34, imu_data.spi_err_cnt);
+    Octolinker_SendU32(octo, 35, imu_data.frame_count);
+    Octolinker_SendU32(octo, 36, s_heater_last_ms);
+    Octolinker_SendF32(octo, 43, bmi088_heater_feedforward);
 }

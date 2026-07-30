@@ -11,6 +11,7 @@
 #include "knx_project_config.h"
 #include "knx_sys.h"
 #include "knx_time.h"
+#include "knexus_config.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -24,6 +25,7 @@ static knx_safety_level_t safety_level = KNX_SAFETY_LEVEL_OK;
 static volatile uint32_t fault_flags = KNX_FAULT_NONE;
 static volatile uint32_t warning_flags = KNX_WARN_NONE;
 static uint32_t safety_init_ms = 0U;
+static uint32_t drive_boot_ms = 0U;
 
 #define KNX_SAFETY_HOST_COMM_TIMEOUT_MS 1000U
 
@@ -103,6 +105,7 @@ knx_status_t knx_safety_init(void)
     fault_flags = KNX_FAULT_NONE;
     warning_flags = KNX_WARN_NONE;
     safety_init_ms = knx_millis();
+    drive_boot_ms = safety_init_ms;
     knx_safety_update_count = 0U;
     sync_debug_mirrors(0xFFFFFFFFU, 0xFFFFFFFFU);
     (void)knx_health_report(KNX_HEALTH_SOURCE_SAFETY,
@@ -179,13 +182,21 @@ static knx_status_t knx_safety_update_drive(void)
     knx_motor_state_t right;
     knx_sys_state_t sys_state = knx_sys_get_state();
     bool strict_check = (sys_state == KNX_SYS_READY || sys_state == KNX_SYS_RUNNING);
+    bool startup_grace =
+        (knx_millis() - drive_boot_ms) < KNEXUS_SAFETY_STARTUP_GRACE_MS_DEFAULT;
 
     knx_imu_snapshot(&imu);
     knx_motor_snapshot(&left, &right);
 
     if (strict_check) {
         if (!knx_imu_is_ready() || !knx_imu_is_fresh(g_knx_params.safety.imu_timeout_ms)) {
-            faults |= KNX_FAULT_IMU_FAIL;
+            /* Do not permanently latch the normal BMI088/EKF first-frame gap.
+             * Once the grace window ends, the same condition is a real fault. */
+            if (startup_grace) {
+                warnings |= KNX_WARN_STARTUP;
+            } else {
+                faults |= KNX_FAULT_IMU_FAIL;
+            }
         }
 
         if (knx_abs_f(imu.pitch) > g_knx_params.safety.max_tilt_deg ||

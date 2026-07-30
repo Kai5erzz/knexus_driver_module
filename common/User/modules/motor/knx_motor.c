@@ -9,6 +9,7 @@
 
 static knx_motor_state_t motor_left_state;
 static knx_motor_state_t motor_right_state;
+volatile uint32_t knx_motor_diag_init_stage;
 
 static float torque_gain_nm_per_a(void)
 {
@@ -66,15 +67,20 @@ static void sync_public_state(void)
 
 knx_status_t knx_motor_init(void)
 {
+    knx_motor_diag_init_stage = 1U;
     motor_left_state = (knx_motor_state_t){0};
     motor_right_state = (knx_motor_state_t){0};
 
     DRV8701E_VelocityInit();
+    knx_motor_diag_init_stage = 2U;
     DRV8701E_CurrentCtrlInit();
     DRV8701E_Current_Start();
+    knx_motor_diag_init_stage = 3U;
     DRV8701E_Current_CalibrateZero(100, 1);
+    knx_motor_diag_init_stage = 4U;
     DRV8701E_StopAll();
     sync_public_state();
+    knx_motor_diag_init_stage = 5U;
 
     return KNX_OK;
 }

@@ -30,9 +30,13 @@ caddr_t _sbrk(int incr)
 #include "FreeRTOS.h"
 #include "task.h"
 
+volatile uint32_t knx_mspm0_stack_overflow_count;
+volatile uintptr_t knx_mspm0_stack_overflow_task;
+
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
-    (void)xTask;
+    knx_mspm0_stack_overflow_count++;
+    knx_mspm0_stack_overflow_task = (uintptr_t)xTask;
     (void)pcTaskName;
     for (;;) {}
 }
