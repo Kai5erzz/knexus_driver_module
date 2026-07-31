@@ -1,6 +1,7 @@
 #include "OLED.h"
 #include "OLED_Font.h"
 #include "knexus_config.h"
+#include "knx_custom_i2c_guard.h"
 #include "knx_time.h"
 #include <stddef.h>
 #include <string.h>
@@ -29,14 +30,17 @@ static bool oled_bus_write(uint8_t control,
                            uint16_t length)
 {
     if (data == NULL || length == 0U || length > OLED_WIDTH) return false;
+    if (!knx_custom_i2c_try_lock()) return false;
     s_transfer[0] = control;
     memcpy(&s_transfer[1], data, length);
     if (HAL_I2C_Master_Transmit(&hi2c1, OLED_ADDRESS_8BIT,
                                 s_transfer, (uint16_t)(length + 1U),
                                 KNEXUS_H_OLED_I2C_TIMEOUT_MS) != HAL_OK) {
+        knx_custom_i2c_unlock();
         s_error_count++;
         return false;
     }
+    knx_custom_i2c_unlock();
     return true;
 }
 
@@ -125,6 +129,7 @@ static bool oled_bus_write(uint8_t control,
                            uint16_t length)
 {
     if (data == NULL || length == 0U || length > OLED_WIDTH) return false;
+    if (!knx_custom_i2c_try_lock()) return false;
     bool ack = true;
     oled_start();
     ack = oled_send_byte(OLED_ADDRESS_8BIT) && ack;
@@ -133,6 +138,7 @@ static bool oled_bus_write(uint8_t control,
         ack = oled_send_byte(data[i]) && ack;
     }
     oled_stop();
+    knx_custom_i2c_unlock();
     if (!ack) s_error_count++;
     return ack;
 }

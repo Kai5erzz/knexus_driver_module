@@ -13,6 +13,7 @@ static bool s_initialized;
 static bool s_enabled;
 static knx_status_t s_last_tx_status = KNX_NOT_READY;
 static uint32_t s_last_tx_attempt_ms;
+static uint32_t s_stop_flush_deadline_ms;
 static float s_max_current_cmd = KNEXUS_DJI_PID_MAX_CURRENT_CMD;
 static float s_current_feedforward_cmd;
 static float s_current_feedforward_min_rpm;
@@ -123,8 +124,27 @@ knx_status_t knx_dji_motor_ctrl_init(void)
 void knx_dji_motor_ctrl_update(float dt_s)
 {
     if (!s_initialized || s_motor == NULL) return;
-    /* 未解锁时不以1 kHz占用CAN；stop()已经主动发送过一次零电流帧。 */
-    if (!s_enabled) return;
+    uint32_t now = knx_millis();
+    if (!s_enabled) {
+        /* C620保持最后一条电流命令。stop()的首次零帧若遇到TX FIFO busy，
+         * 必须由1 kHz任务继续重试，否则会出现软件已停而电机继续加速。 */
+        bool flush_active = (int32_t)(s_stop_flush_deadline_ms - now) > 0;
+        if (flush_active &&
+            (now - s_last_tx_attempt_ms) >=
+                KNEXUS_DJI_STOP_FLUSH_PERIOD_MS) {
+            s_last_tx_attempt_ms = now;
+            s_last_tx_status = dji_motor_control();
+            if (s_last_tx_status == KNX_OK) dji_tx_count++;
+            else {
+                dji_tx_error_count++;
+                if (s_last_tx_status == KNX_BUSY ||
+                    s_last_tx_status == KNX_TIMEOUT) {
+                    dji_tx_busy_count++;
+                }
+            }
+        }
+        return;
+    }
     if (dt_s <= 0.0f) dt_s = 0.001f;
 
     float max_step = s_target_slew_rpmps * dt_s;
@@ -139,7 +159,6 @@ void knx_dji_motor_ctrl_update(float dt_s)
      * This makes an intentionally unplugged 3508 a normal degraded state,
      * rather than allowing repeated no-ACK traffic to dominate FDCAN.
      */
-    uint32_t now = knx_millis();
     bool feedback_fresh =
         (s_motor->measure.feedback_count != 0U) &&
         ((now - s_motor->measure.last_feedback_ms) <=
@@ -214,6 +233,8 @@ void knx_dji_motor_ctrl_stop(void)
     s_target_used_rpm = 0.0f;
     s_enabled = false;
     s_last_tx_attempt_ms = knx_millis();
+    s_stop_flush_deadline_ms =
+        s_last_tx_attempt_ms + KNEXUS_DJI_STOP_FLUSH_MS;
     dji_pid_output = 0;
     if (s_speed_pid != NULL) pid_clear(s_speed_pid);
     dji_motor_relax(s_motor);
@@ -234,6 +255,7 @@ void knx_dji_motor_ctrl_enable(void)
 {
     if (!s_initialized || s_motor == NULL) return;
     s_last_tx_attempt_ms = knx_millis();
+    s_stop_flush_deadline_ms = 0U;
     s_enabled = true;
     dji_motor_enable(s_motor);
 }

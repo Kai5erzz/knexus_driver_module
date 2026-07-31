@@ -18,6 +18,7 @@ float knexus_ball_compensation_enable =
 float knexus_ball_accel_compensation_gain =
     KNEXUS_BALL_ACCEL_COMPENSATION_GAIN;
 float knexus_ball_drag_s_inv = KNEXUS_BALL_DRAG_S_INV_DEFAULT;
+float knexus_ball_accel_lpf_hz = KNEXUS_BALL_ACCEL_LPF_HZ;
 
 static knx_ball_motion_comp_state_t s_state;
 static float s_bias_sum[3];
@@ -180,8 +181,9 @@ void knx_ball_motion_comp_update(const float chassis_accel_mps2[3],
     }
     s_state.selected_specific_force_mps2 = selected;
 
-    float tau_s = 1.0f / (6.28318530718f *
-                          KNEXUS_BALL_ACCEL_LPF_HZ);
+    float accel_lpf_hz = fabsf(knexus_ball_accel_lpf_hz);
+    if (accel_lpf_hz < 0.1f) accel_lpf_hz = 0.1f;
+    float tau_s = 1.0f / (6.28318530718f * accel_lpf_hz);
     float alpha = dt_s / (tau_s + dt_s);
     if (!s_filter_initialized) {
         s_state.filtered_specific_force_mps2 = selected;

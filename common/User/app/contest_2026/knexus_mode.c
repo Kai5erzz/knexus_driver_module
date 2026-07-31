@@ -24,6 +24,12 @@ typedef struct {
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_static_rod_angle
 #elif defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_line_follow_ball_center
+#elif defined(KNEXUS_MODE_JC4310_LINK_CENTER)
+#define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_jc4310_link_center
+#elif defined(KNEXUS_MODE_SCREW_OFFSET_CENTER)
+#define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_screw_offset_center
+#elif defined(KNEXUS_MODE_SIX_MENU)
+#define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_six_menu
 #else
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_user
 #endif

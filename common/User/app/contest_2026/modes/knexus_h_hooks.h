@@ -49,5 +49,7 @@ void knexus_h_ball_user_update(const knexus_h_ball_request_t *request,
 void knexus_h_display_time_ms(uint32_t elapsed_ms,
                               bool running,
                               bool completed);
+void knexus_h_display_set_limit_ms(uint32_t limit_ms);
+void knexus_h_display_invalidate(void);
 
 #endif

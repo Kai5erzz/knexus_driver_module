@@ -3,6 +3,7 @@
 #include "knx_time.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stddef.h>
 
@@ -11,6 +12,7 @@
 static knx_can_t *s_can = NULL;
 static volatile uint8_t s_rx_flag = 0U;
 static volatile uint8_t s_last_motor_id = 0U;
+static volatile uint8_t s_last_cmd = 0U;
 static volatile uint16_t s_last_reg = 0U;
 static volatile JC_Reply s_last_reply;
 static JC_Stats s_stats;
@@ -99,8 +101,34 @@ void JC_RxHandler(uint32_t can_id, const uint8_t *rx_data, uint8_t len)
         return;
     }
 
-    s_last_reply.cmd = rx_data[0];
-    s_last_reply.reg = (uint16_t)(((uint16_t)rx_data[1] << 8) | rx_data[2]);
+    uint8_t reply_cmd = rx_data[0];
+    uint16_t reply_reg =
+        (uint16_t)(((uint16_t)rx_data[1] << 8) | rx_data[2]);
+    uint8_t expected_cmd = s_last_cmd;
+    uint16_t expected_reg = s_last_reg;
+
+    /*
+     * JC4310会应答写寄存器命令。连续力矩保活后立刻发起同步读取时，较晚到达
+     * 的写应答可能落在读取等待窗口内。旧实现只核对电机ID，这个写应答便会
+     * 置位s_rx_flag，导致读取函数把它当成位置/速度/错误寄存器回包。
+     *
+     * 同步事务必须同时匹配命令与寄存器。0x2A主动状态帧只对应PV/PVT命令，
+     * 不能唤醒普通寄存器读取。
+     */
+    bool reply_matches = false;
+    if (reply_cmd == 0x2AU) {
+        reply_matches =
+            expected_cmd == JC_CMD_PV || expected_cmd == JC_CMD_PVT;
+    } else {
+        reply_matches =
+            reply_cmd == expected_cmd && reply_reg == expected_reg;
+    }
+    if (!reply_matches) {
+        return;
+    }
+
+    s_last_reply.cmd = reply_cmd;
+    s_last_reply.reg = reply_reg;
 
     if (s_last_reply.cmd == 0x2AU) {
         uint32_t raw_pos = ((uint32_t)rx_data[1] << 16)
@@ -172,8 +200,10 @@ knx_status_t JC_Send(uint8_t motor_id, uint16_t reg, uint8_t cmd, uint64_t data)
     }
 
     s_last_motor_id = motor_id;
+    s_last_cmd = cmd;
     s_last_reg = reg;
     s_rx_flag = 0U;
+    __asm volatile ("dsb" ::: "memory");
 
     uint16_t tx_id = (uint16_t)(JC_TX_ID_BASE + motor_id);
     knx_status_t status = knx_can_transmit_std(s_can, tx_id, tx_data, JC_CAN_DLC, s_timeout_ms);
@@ -229,7 +259,9 @@ float JC_ReadVoltage(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_16BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_16BIT &&
+        reply.reg == JC_REG_VOLTAGE) {
         return (float)(uint16_t)reply.current * 0.1f;
     }
     return -1.0f;
@@ -242,7 +274,9 @@ float JC_ReadBusCurrent(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_16BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_16BIT &&
+        reply.reg == JC_REG_BUS_CURRENT) {
         return (float)(uint16_t)reply.current * 0.01f;
     }
     return -1.0f;
@@ -255,7 +289,9 @@ float JC_ReadSpeed(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_32BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_32BIT &&
+        reply.reg == JC_REG_SPEED) {
         return (float)reply.position * 0.01f;
     }
     return -1.0f;
@@ -268,7 +304,9 @@ float JC_ReadPosition(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_32BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_32BIT &&
+        reply.reg == JC_REG_POSITION) {
         return (float)reply.position * 0.01f;
     }
     return -1.0f;
@@ -281,7 +319,9 @@ float JC_ReadDrvTemp(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_16BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_16BIT &&
+        reply.reg == JC_REG_DRV_TEMP) {
         return (float)(uint16_t)reply.current * 0.1f;
     }
     return -1.0f;
@@ -294,7 +334,9 @@ float JC_ReadMotTemp(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_16BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_16BIT &&
+        reply.reg == JC_REG_MOT_TEMP) {
         return (float)(uint16_t)reply.current * 0.1f;
     }
     return -1.0f;
@@ -307,7 +349,9 @@ uint32_t JC_ReadError(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_32BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_32BIT &&
+        reply.reg == JC_REG_ERROR) {
         return (uint32_t)reply.position;
     }
     return 0xFFFFFFFFU;
@@ -392,7 +436,9 @@ uint16_t JC_ReadCalResult(uint8_t motor_id)
     }
 
     JC_Reply reply;
-    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK && reply.cmd == JC_CMD_READ_16BIT) {
+    if (JC_Receive(motor_id, &reply, s_timeout_ms) == KNX_OK &&
+        reply.cmd == JC_CMD_READ_16BIT &&
+        reply.reg == JC_REG_CAL_RESULT) {
         return (uint16_t)reply.current;
     }
     return 0U;

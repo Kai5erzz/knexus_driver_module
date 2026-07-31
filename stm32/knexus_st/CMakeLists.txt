@@ -81,6 +81,7 @@ include_directories(
     ${KNEXUS_COMMON_USER_DIR}/drv/jc_driver
     ${KNEXUS_COMMON_USER_DIR}/drv/encoder
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
+    ${KNEXUS_COMMON_USER_DIR}/drv/ir_line_sensor
     ${KNEXUS_COMMON_USER_DIR}/drv/led
     ${KNEXUS_COMMON_USER_DIR}/drv/key
     ${KNEXUS_COMMON_USER_DIR}/drv/beep
@@ -167,7 +168,6 @@ file(GLOB_RECURSE COMMON_SOURCES
 if(KNEXUS_APP STREQUAL "contest_2026")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/gimbal/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/modules/vision/")
-    list(FILTER COMMON_SOURCES EXCLUDE REGEX "/drv/jc_driver/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/test_modes/")
     list(FILTER COMMON_SOURCES EXCLUDE REGEX "/app/knx_app_superloop\\.c$")
 endif()

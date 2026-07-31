@@ -243,7 +243,12 @@ void knexus_mode_intersection_sample_init(void)
     s_send_status = KNX_OK;
     stop_motion();
     knx_led_set(KNX_LED_1, false);
+#if KNEXUS_LINE_SENSOR_REQUIRES_CALIBRATION
     enter_state(SAMPLE_IDLE);
+#else
+    knx_led_set(KNX_LED_1, true);
+    enter_state(SAMPLE_READY);
+#endif
 }
 
 void knexus_mode_intersection_sample_update(
@@ -257,7 +262,13 @@ void knexus_mode_intersection_sample_update(
             send_result();
             knx_beep_beep(100U);
         } else {
+#if KNEXUS_LINE_SENSOR_REQUIRES_CALIBRATION
             start_calibration();
+#else
+            knx_led_set(KNX_LED_1, true);
+            enter_state(SAMPLE_READY);
+            knx_beep_beep(100U);
+#endif
         }
         return;
     }

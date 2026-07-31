@@ -48,6 +48,8 @@ set(COMMON_DRIVER_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/drv/dji_motor/dji_motor.c
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088/bmi088.c
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor/track_sensor.c
+    ${KNEXUS_COMMON_USER_DIR}/drv/ir_line_sensor/ir_line_sensor.c
+    ${KNEXUS_COMMON_USER_DIR}/drv/ir_line_sensor/knx_custom_i2c_guard.c
     ${KNEXUS_COMMON_USER_DIR}/drv/oled/OLED.c
 )
 
@@ -78,6 +80,7 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/modules/intersection/knx_intersection.c
     ${KNEXUS_COMMON_USER_DIR}/modules/comm/knx_comm.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx26_app.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/knx_pendulum_comm.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_line_follow.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_h_hooks.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_h_oled_display.c
@@ -89,6 +92,9 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_screw_test.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_static_rod_angle.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_line_follow_ball_center.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_jc4310_link_center.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_screw_offset_center.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_six_menu.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_user.c
 )
 
@@ -183,6 +189,7 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/drv/dji_motor
     ${KNEXUS_COMMON_USER_DIR}/drv/bmi088
     ${KNEXUS_COMMON_USER_DIR}/drv/track_sensor
+    ${KNEXUS_COMMON_USER_DIR}/drv/ir_line_sensor
     ${KNEXUS_COMMON_USER_DIR}/drv/oled
     ${KNEXUS_COMMON_USER_DIR}/util
     ${KNEXUS_COMMON_USER_DIR}/algorithm/crc

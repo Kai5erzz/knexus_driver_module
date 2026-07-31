@@ -19,8 +19,14 @@
 #include "bmi088.h"
 #if defined(KNEXUS_MODE_BOARD_TEST) || defined(KNEXUS_MODE_SCREW_TEST) || \
     defined(KNEXUS_MODE_STATIC_ROD_ANGLE) || \
-    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER) || \
+    defined(KNEXUS_MODE_SCREW_OFFSET_CENTER)
 #include "knx_dji_motor_ctrl.h"
+#endif
+#if defined(KNX_PLATFORM_STM32) && \
+    (defined(KNEXUS_MODE_SCREW_OFFSET_CENTER) || \
+     defined(KNEXUS_MODE_SIX_MENU))
+#include "knx_pendulum_comm.h"
 #endif
 #if defined(KNX_PLATFORM_MSPM0)
 #include "ti_msp_dl_config.h"
@@ -135,7 +141,9 @@ knx_status_t knx26_app_init(void)
     knx26_diag_init_stage = 5U;
 
     knx_comm_init(KNX26_LOCAL_NODE_ID);
-#if defined(KNX_PLATFORM_STM32)
+#if defined(KNX_PLATFORM_STM32) && \
+    !defined(KNEXUS_MODE_SCREW_OFFSET_CENTER) && \
+    !defined(KNEXUS_MODE_SIX_MENU)
     (void)knx_comm_attach(KNX_COMM_HOST, knx_board_get_host_comm());
 #endif
     (void)knx_comm_subscribe(KNX_COMM_HOST, KNX_COMM_MSG_COMMAND,
@@ -185,10 +193,18 @@ void knx26_fast_update(void)
     knx_beep_update();
     return;
 #elif defined(KNEXUS_MODE_SCREW_TEST) || \
-      defined(KNEXUS_MODE_STATIC_ROD_ANGLE)
+      defined(KNEXUS_MODE_STATIC_ROD_ANGLE) || \
+      defined(KNEXUS_MODE_SCREW_OFFSET_CENTER)
     /* 丝杆/杆角模式只驱动FDCAN2上的C620。10 ms任务给目标，1 kHz任务
      * 负责速度斜坡、PID和CAN电流帧；底盘左右轮始终不参与。 */
     knx_dji_motor_ctrl_update((float)KNX26_FAST_PERIOD_MS * 0.001f);
+    knx_port_watchdog_refresh();
+    knx_beep_update();
+    return;
+#elif defined(KNEXUS_MODE_JC4310_LINK_CENTER)
+    /* JC4310极性标定只允许FDCAN2上的无刷电机工作；FDCAN1仅接收杆角IMU。
+     * 底盘和C620/3508均不初始化、不调度，避免任何旧目标残留造成误动作。 */
+    (void)knx_chassis_disable();
     knx_port_watchdog_refresh();
     knx_beep_update();
     return;
@@ -310,7 +326,12 @@ void knx26_comm_update(void)
     for (uint8_t round = 0U; round < 4U; ++round) {
         uint16_t count = knx_board_host_comm_read(bytes, sizeof(bytes));
         if (count == 0U) break;
+#if defined(KNEXUS_MODE_SCREW_OFFSET_CENTER) || \
+    defined(KNEXUS_MODE_SIX_MENU)
+        knx_pendulum_comm_feed(bytes, count);
+#else
         (void)knx_host_comm_feed(knx_board_get_host_comm(), bytes, count);
+#endif
     }
 #else
     extern void knx_can_mspm0_poll(void);

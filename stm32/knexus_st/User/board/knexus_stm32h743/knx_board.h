@@ -8,6 +8,7 @@
 #include "knx_can.h"
 #include "knx_host_comm.h"
 #include "octolinker.h"
+#include "ir_line_sensor.h"
 
 /* Board-level initialization.
  * Called once after all CubeMX MX_xxx_Init() are complete.
@@ -22,6 +23,7 @@ const knx_gpio_t *knx_board_get_debug_led(void);
 
 /* Get the OctoLink instance for debug output */
 Octolinker_Instance_t *knx_board_get_octolinker(void);
+ir_line_sensor_t *knx_board_get_ir_line_sensor(void);
 
 /* Get encoder port descriptors (left=TIM1, right=LPTIM1) */
 const knx_encoder_port_t *knx_board_get_encoder_left(void);

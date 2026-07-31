@@ -13,6 +13,7 @@ volatile uint8_t knexus_h_oled_display_state;
 static bool s_init_attempted;
 static bool s_was_running;
 static uint32_t s_last_bucket = UINT32_MAX;
+static uint32_t s_limit_ms = KNEXUS_H_SCORE_TIME_LIMIT_MS;
 static char s_cache[4][17];
 
 enum {
@@ -22,6 +23,15 @@ enum {
     H_OLED_OVER = 3,
     H_OLED_STOPPED = 4,
 };
+
+void knexus_h_display_invalidate(void)
+{
+    memset(s_cache, 0, sizeof(s_cache));
+    s_last_bucket = UINT32_MAX;
+    s_was_running = false;
+    knexus_h_oled_display_state = 0xFFU;
+    if (OLED_IsReady()) OLED_Clear();
+}
 
 static void make_line(char out[17], const char *text)
 {
@@ -60,6 +70,31 @@ static void format_time(char out[17], uint32_t elapsed_ms)
     out[11] = (char)('0' + millis % 10U);
 }
 
+static void format_limit(char out[17], uint32_t limit_ms)
+{
+    uint32_t seconds = limit_ms / 1000U;
+    uint32_t millis = limit_ms % 1000U;
+    if (seconds > 999U) seconds = 999U;
+    make_line(out, "LIMIT 000.000s");
+    out[6] = (char)('0' + (seconds / 100U) % 10U);
+    out[7] = (char)('0' + (seconds / 10U) % 10U);
+    out[8] = (char)('0' + seconds % 10U);
+    out[10] = (char)('0' + (millis / 100U) % 10U);
+    out[11] = (char)('0' + (millis / 10U) % 10U);
+    out[12] = (char)('0' + millis % 10U);
+}
+
+void knexus_h_display_set_limit_ms(uint32_t limit_ms)
+{
+    s_limit_ms = limit_ms;
+    s_last_bucket = UINT32_MAX;
+    if (OLED_IsReady()) {
+        char line[17];
+        format_limit(line, s_limit_ms);
+        show_line(4U, line);
+    }
+}
+
 void knexus_h_display_time_ms(uint32_t elapsed_ms,
                               bool running,
                               bool completed)
@@ -69,13 +104,15 @@ void knexus_h_display_time_ms(uint32_t elapsed_ms,
         memset(s_cache, 0, sizeof(s_cache));
         if (!OLED_Init()) return;
         show_line(1U, "KNEXUS H TASK");
-        show_line(4U, "LIMIT 020.000s");
+        char limit_line[17];
+        format_limit(limit_line, s_limit_ms);
+        show_line(4U, limit_line);
     }
     if (!OLED_IsReady()) return;
 
     uint8_t state;
     if (completed) {
-        state = (elapsed_ms <= KNEXUS_H_SCORE_TIME_LIMIT_MS)
+        state = (elapsed_ms <= s_limit_ms)
                     ? H_OLED_PASS : H_OLED_OVER;
     } else if (running) {
         state = H_OLED_RUNNING;

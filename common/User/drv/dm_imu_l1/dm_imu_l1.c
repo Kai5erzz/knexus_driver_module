@@ -151,7 +151,9 @@ static void dm_imu_l1_parse_accel(const uint8_t *data)
         if (s_accel_tilt_valid) {
             /* Sensor frame is rotated 180 deg around X by the upside-down
              * installation: x'=x, y'=-y, z'=-z. */
-            s_accel_roll_deg = atan2f(-ay, -az) * 57.2957795f;
+            s_accel_roll_deg = dm_imu_l1_wrap_degrees(
+                atan2f(-ay, -az) * 57.2957795f -
+                KNEXUS_DM_IMU_ROLL_ZERO_OFFSET_DEG);
             s_accel_pitch_deg =
                 atan2f(-ax, sqrtf(ay * ay + az * az)) * 57.2957795f;
             if (!s_tilt_filter_ready) {
@@ -230,7 +232,8 @@ static void dm_imu_l1_parse_euler(const uint8_t *data)
      * OctoLink (including var932) always observe the same corrected roll. */
     float vendor_roll = dm_imu_l1_wrap_degrees(
         (raw_roll_deg - KNEXUS_DM_IMU_ROLL_OFFSET_DEG) *
-        KNEXUS_DM_IMU_ROLL_SIGN);
+            KNEXUS_DM_IMU_ROLL_SIGN -
+        KNEXUS_DM_IMU_ROLL_ZERO_OFFSET_DEG);
     s_vendor_roll_deg = vendor_roll;
     s_vendor_pitch_deg = vendor_pitch;
 #if KNEXUS_DM_IMU_TILT_FUSION_ENABLE

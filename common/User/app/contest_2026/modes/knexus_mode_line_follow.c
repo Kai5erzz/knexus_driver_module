@@ -25,7 +25,8 @@
 #define knx26_user_on_peer_message       knexus_mode_line_follow_on_peer_message
 #define knx26_user_debug_octo            knexus_mode_line_follow_debug_octo
 #define knx26_user_debug_control_octo    knexus_mode_line_follow_debug_control_octo
-#elif defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+#elif defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER) || \
+      defined(KNEXUS_MODE_SIX_MENU)
 #define knx26_user_init                  knexus_line_follow_core_init
 #define knx26_user_update                knexus_line_follow_core_update
 #define knx26_user_on_intersection       knexus_line_follow_core_on_intersection
@@ -40,7 +41,8 @@ float knx26_test_right_cmd_polarity = KNEXUS_MOTOR_RIGHT_CMD_SIGN_DEFAULT;
 float knx26_test_left_feedback_polarity = KNEXUS_MOTOR_LEFT_FEEDBACK_SIGN_DEFAULT;
 float knx26_test_right_feedback_polarity = KNEXUS_MOTOR_RIGHT_FEEDBACK_SIGN_DEFAULT;
 #if defined(KNEXUS_MODE_LINE_FOLLOW) || \
-    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER) || \
+    defined(KNEXUS_MODE_SIX_MENU)
 float knx26_test_max_duty = KNEXUS_LINE_MAX_DUTY_DEFAULT;
 #elif defined(KNEXUS_MODE_INTERSECTION_SAMPLE)
 float knx26_test_max_duty = KNEXUS_SAMPLE_MAX_DUTY_DEFAULT;
@@ -67,7 +69,8 @@ float knexus_h_stop_after_mark_m = KNEXUS_H_STOP_AFTER_MARK_M_DEFAULT;
 float knexus_h_ball_target_cm = KNEXUS_H_BALL_TARGET_CM_DEFAULT;
 
 #if defined(KNEXUS_MODE_LINE_FOLLOW) || \
-    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER) || \
+    defined(KNEXUS_MODE_SIX_MENU)
 
 #define KNX26_CAL_DELAY_MS          KNEXUS_LINE_CAL_DELAY_MS
 #define KNX26_CAL_SAMPLES           KNEXUS_LINE_CAL_SAMPLES
@@ -94,6 +97,8 @@ static knx26_line_state_t s_state;
 static uint32_t s_state_tick;
 static uint32_t s_cal_sample_count;
 static uint32_t s_last_cal_track_update;
+static uint32_t s_last_control_track_update;
+static uint32_t s_last_control_sensor_ms;
 static uint32_t s_stop_count;
 static uint32_t s_line_lost_count;
 static uint32_t s_line_lost_since_ms;
@@ -124,6 +129,10 @@ static float s_curve_direction;
 static float s_linear_accel_command;
 static float s_measured_linear_accel;
 static float s_last_measured_linear;
+static float s_longitudinal_accel_limit_mps2;
+static float s_longitudinal_decel_limit_mps2;
+static float s_longitudinal_jerk_limit_mps3;
+static bool s_constant_speed_enabled;
 static uint16_t s_min_cal_span;
 static uint32_t s_h_run_start_ms;
 static uint32_t s_h_elapsed_ms;
@@ -324,11 +333,12 @@ static bool h_is_start_line(uint8_t mask,
         return false;
     }
 
-    /* Accept a centered 3/4-channel bar, a slightly shifted continuous bar,
-     * and a wider bar with one weak/missing channel. */
-    return center_count >= KNEXUS_H_START_LINE_ACTIVE_MIN ||
-           longest_run >= KNEXUS_H_START_LINE_CONTIGUOUS_MIN ||
-           active_count >= 4U;
+    /* New digital sensor capture: normal line produced 0x1C (three active),
+     * while the real A mark produced 0x3E (five active).  The checks above
+     * now require at least four simultaneous channels plus centre coverage;
+     * no three-channel fallback is allowed. */
+    (void)longest_run;
+    return true;
 }
 
 static float h_travel_from(float position_m, float origin_m)
@@ -584,6 +594,8 @@ static void start_line_follow(const knx26_context_t *context)
     s_filtered_derivative = 0.0f;
     s_error_integral = 0.0f;
     s_last_valid_error = s_filtered_error;
+    s_last_control_track_update = 0U;
+    s_last_control_sensor_ms = 0U;
     s_line_lost_since_ms = 0U;
     s_line_lost_pending = false;
     s_stop_reason = KNX26_STOP_NONE;
@@ -697,45 +709,57 @@ static void update_line_follow(const knx26_context_t *context,
     s_line_confidence = confidence;
     if (confidence <= 0.0f) s_line_lost_count++;
 
-    float effective_error = confidence * raw_error +
-                            (1.0f - confidence) * s_last_valid_error;
+    bool new_sensor_sample =
+        context->track.update_count != s_last_control_track_update;
+    if (new_sensor_sample) {
+        float sensor_dt_s = (float)KNEXUS_TRACK_PERIOD_MS * 0.001f;
+        if (s_last_control_sensor_ms != 0U &&
+            context->track.timestamp_ms > s_last_control_sensor_ms) {
+            sensor_dt_s = (float)(context->track.timestamp_ms -
+                                  s_last_control_sensor_ms) * 0.001f;
+        }
+        if (sensor_dt_s < 0.005f) sensor_dt_s = 0.005f;
+        if (sensor_dt_s > 0.100f) sensor_dt_s = 0.100f;
+        s_last_control_track_update = context->track.update_count;
+        s_last_control_sensor_ms = context->track.timestamp_ms;
 
-    /* A black line moving between adjacent sensors produces a legitimate
-     * step in the weighted centroid.  Filter both the centroid and its
-     * derivative so that this step cannot reverse the motors through an
-     * impulsive D term. */
-    s_filtered_error += KNEXUS_LINE_ERROR_FILTER_ALPHA *
-                        (effective_error - s_filtered_error);
-    float raw_derivative = (s_filtered_error - s_previous_error) / dt_s;
-    s_previous_error = s_filtered_error;
-    s_filtered_derivative += KNEXUS_LINE_D_FILTER_ALPHA *
-                             (raw_derivative - s_filtered_derivative);
+        float effective_error = confidence * raw_error +
+                                (1.0f - confidence) * s_last_valid_error;
+        /* The new sensor updates at 50 Hz.  Update the error and derivative
+         * exactly once per new I2C sample so sample-and-hold frames do not
+         * create alternating zero/impulse derivative terms at the 100 Hz app
+         * rate. */
+        s_filtered_error += KNEXUS_LINE_ERROR_FILTER_ALPHA *
+                            (effective_error - s_filtered_error);
+        float raw_derivative =
+            (s_filtered_error - s_previous_error) / sensor_dt_s;
+        s_previous_error = s_filtered_error;
+        s_filtered_derivative += KNEXUS_LINE_D_FILTER_ALPHA *
+                                 (raw_derivative - s_filtered_derivative);
 
-    if (confidence >= KNEXUS_LINE_VALID_CONFIDENCE) {
-        s_last_valid_error = s_filtered_error;
+        if (confidence >= KNEXUS_LINE_VALID_CONFIDENCE) {
+            s_last_valid_error = s_filtered_error;
+        }
+
+        float sample_abs_error = fabsf(s_filtered_error);
+        if (confidence < KNEXUS_LINE_VALID_CONFIDENCE) {
+            s_error_integral *= KNEXUS_LINE_INTEGRAL_WEAK_DECAY;
+        } else if (sample_abs_error < KNEXUS_LINE_STRAIGHT_ZONE_ERROR) {
+            s_error_integral *= KNEXUS_LINE_STRAIGHT_INTEGRAL_DECAY;
+        } else {
+            if (s_error_integral * s_filtered_error < 0.0f) {
+                s_error_integral *= KNEXUS_LINE_INTEGRAL_REVERSE_DECAY;
+            } else {
+                s_error_integral *= KNEXUS_LINE_INTEGRAL_NORMAL_DECAY;
+            }
+            s_error_integral += s_filtered_error * sensor_dt_s;
+        }
+        s_error_integral = clamp_abs(s_error_integral,
+                                     knx26_line_integral_limit);
     }
     float abs_error = (s_filtered_error < 0.0f)
                           ? -s_filtered_error
                           : s_filtered_error;
-
-    /* Leaky/conditional integral prevents a long turn or line loss from
-     * pinning the integral and fighting the next recovery direction. */
-    if (confidence < KNEXUS_LINE_VALID_CONFIDENCE) {
-        s_error_integral *= KNEXUS_LINE_INTEGRAL_WEAK_DECAY;
-    } else if (abs_error < KNEXUS_LINE_STRAIGHT_ZONE_ERROR) {
-        /* Do not let a tiny straight-line error build enough integral to
-         * overshoot the centre and start a left/right limit cycle. */
-        s_error_integral *= KNEXUS_LINE_STRAIGHT_INTEGRAL_DECAY;
-    } else {
-        if (s_error_integral * s_filtered_error < 0.0f) {
-            s_error_integral *= KNEXUS_LINE_INTEGRAL_REVERSE_DECAY;
-        } else {
-            s_error_integral *= KNEXUS_LINE_INTEGRAL_NORMAL_DECAY;
-        }
-        s_error_integral += s_filtered_error * dt_s;
-    }
-    s_error_integral = clamp_abs(s_error_integral,
-                                 knx26_line_integral_limit);
 
     float steering = knx26_line_kp * s_filtered_error +
                      knx26_line_ki * s_error_integral +
@@ -827,6 +851,12 @@ static void update_line_follow(const knx26_context_t *context,
      * sweep the sensor bar back across the line instead of drawing a wide arc. */
     s_speed_scale *= KNEXUS_LINE_SEARCH_SPEED_BASE +
                      KNEXUS_LINE_SEARCH_SPEED_CONFIDENCE * confidence;
+    if (s_constant_speed_enabled) {
+        /* 模式4已经使用更低的专用速度。保持线速度恒定，避免传感器离散跳变
+         * 或弯道窗口把纵向命令调制成明显的快慢脉冲。脱线仍由150ms确认后
+         * 的独立安全状态机停车。 */
+        s_speed_scale = 1.0f;
+    }
 
     s_requested_speed = requested_speed_mps;
     s_desired_linear = clamp_abs(requested_speed_mps * s_speed_scale,
@@ -839,16 +869,16 @@ static void update_line_follow(const knx26_context_t *context,
      * stays on the existing path so the proven cornering authority is kept. */
     float target_accel = (s_desired_linear - s_linear_command) /
                          KNEXUS_LINE_SPEED_RESPONSE_S;
-    if (target_accel > KNEXUS_LINE_ACCEL_LIMIT_MPS2) {
-        target_accel = KNEXUS_LINE_ACCEL_LIMIT_MPS2;
+    if (target_accel > s_longitudinal_accel_limit_mps2) {
+        target_accel = s_longitudinal_accel_limit_mps2;
     }
-    if (target_accel < -KNEXUS_LINE_DECEL_LIMIT_MPS2) {
-        target_accel = -KNEXUS_LINE_DECEL_LIMIT_MPS2;
+    if (target_accel < -s_longitudinal_decel_limit_mps2) {
+        target_accel = -s_longitudinal_decel_limit_mps2;
     }
     float linear_error_before = s_desired_linear - s_linear_command;
     s_linear_accel_command = approach_f(
         s_linear_accel_command, target_accel,
-        KNEXUS_LINE_JERK_LIMIT_MPS3 * dt_s);
+        s_longitudinal_jerk_limit_mps3 * dt_s);
     s_linear_command += s_linear_accel_command * dt_s;
     if ((linear_error_before >= 0.0f &&
          s_linear_command > s_desired_linear) ||
@@ -909,6 +939,8 @@ void knx26_user_init(void)
 
     s_cal_sample_count = 0U;
     s_last_cal_track_update = 0U;
+    s_last_control_track_update = 0U;
+    s_last_control_sensor_ms = 0U;
     s_stop_count = 0U;
     s_line_lost_count = 0U;
     s_line_lost_since_ms = 0U;
@@ -937,6 +969,10 @@ void knx26_user_init(void)
     s_linear_accel_command = 0.0f;
     s_measured_linear_accel = 0.0f;
     s_last_measured_linear = 0.0f;
+    s_longitudinal_accel_limit_mps2 = KNEXUS_LINE_ACCEL_LIMIT_MPS2;
+    s_longitudinal_decel_limit_mps2 = KNEXUS_LINE_DECEL_LIMIT_MPS2;
+    s_longitudinal_jerk_limit_mps3 = KNEXUS_LINE_JERK_LIMIT_MPS3;
+    s_constant_speed_enabled = false;
     s_min_cal_span = 0U;
 #if KNEXUS_H_TASK_ENABLE
     s_h_run_start_ms = 0U;
@@ -969,7 +1005,13 @@ void knx26_user_init(void)
     (void)knx_chassis_disable();
     knx_led_set(KNX_LED_1, false);
     knx_led_set(KNX_LED_2, false);
+#if KNEXUS_LINE_SENSOR_REQUIRES_CALIBRATION
     enter_state(KNX26_LINE_IDLE);
+#else
+    /* The replacement sensor already outputs thresholded bits. */
+    knx_led_set(KNX_LED_1, true);
+    enter_state(KNX26_LINE_READY);
+#endif
 }
 
 void knx26_user_update(const struct knx26_context *raw_context)
@@ -989,7 +1031,19 @@ void knx26_user_update(const struct knx26_context *raw_context)
 #endif
 
     if (knx_key_just_pressed(KNX_KEY_0)) {
+#if KNEXUS_LINE_SENSOR_REQUIRES_CALIBRATION
         start_calibration();
+#else
+        /* New operation: KEY0 starts, KEY1 is reserved for emergency stop. */
+        if (s_state != KNX26_LINE_RUNNING
+#if KNEXUS_H_TASK_ENABLE
+            && s_state != KNX26_LINE_START_CLEAR &&
+               s_state != KNX26_LINE_FINISH_APPROACH
+#endif
+        ) {
+            start_line_follow(context);
+        }
+#endif
         return;
     }
 
@@ -1001,25 +1055,8 @@ void knx26_user_update(const struct knx26_context *raw_context)
 
     if (knx_key_just_pressed(KNX_KEY_1)) {
         s_key1_press_count++;
-        if (s_state == KNX26_LINE_RUNNING
-#if KNEXUS_H_TASK_ENABLE
-            || s_state == KNX26_LINE_START_CLEAR ||
-               s_state == KNX26_LINE_FINISH_APPROACH
-#endif
-        ) {
-            s_stop_count++;
-            stop_chassis(KNX26_LINE_STOPPED, 100U, KNX26_STOP_KEY1);
-        } else if (s_state == KNX26_LINE_READY ||
-                   s_state == KNX26_LINE_STOPPED ||
-                   s_state == KNX26_LINE_LOST
-#if KNEXUS_H_TASK_ENABLE
-                   || s_state == KNX26_LINE_COMPLETE
-#endif
-        ) {
-            start_line_follow(context);
-        } else {
-            knx_beep_beep(300U);
-        }
+        s_stop_count++;
+        stop_chassis(KNX26_LINE_STOPPED, 100U, KNX26_STOP_KEY1);
         return;
     }
 
@@ -1053,6 +1090,50 @@ knx26_line_state_t knexus_line_follow_core_get_state(void)
 float knexus_line_follow_core_get_accel_command_mps2(void)
 {
     return s_linear_accel_command;
+}
+
+float knexus_line_follow_core_get_distance_m(void)
+{
+#if KNEXUS_H_TASK_ENABLE
+    return s_h_lap_distance_m;
+#else
+    return 0.0f;
+#endif
+}
+
+uint32_t knexus_line_follow_core_get_elapsed_ms(void)
+{
+#if KNEXUS_H_TASK_ENABLE
+    return s_h_elapsed_ms;
+#else
+    return 0U;
+#endif
+}
+
+void knexus_line_follow_core_force_stop(void)
+{
+    s_stop_count++;
+    stop_chassis(KNX26_LINE_STOPPED, 0U, KNX26_STOP_KEY1);
+}
+
+void knexus_line_follow_core_set_longitudinal_limits(
+    float accel_limit_mps2, float decel_limit_mps2,
+    float jerk_limit_mps3)
+{
+    if (accel_limit_mps2 > 0.01f) {
+        s_longitudinal_accel_limit_mps2 = accel_limit_mps2;
+    }
+    if (decel_limit_mps2 > 0.01f) {
+        s_longitudinal_decel_limit_mps2 = decel_limit_mps2;
+    }
+    if (jerk_limit_mps3 > 0.01f) {
+        s_longitudinal_jerk_limit_mps3 = jerk_limit_mps3;
+    }
+}
+
+void knexus_line_follow_core_set_constant_speed(bool enabled)
+{
+    s_constant_speed_enabled = enabled;
 }
 
 #if KNEXUS_H_TASK_ENABLE
@@ -1219,6 +1300,14 @@ void knx26_user_debug_control_octo(Octolinker_Instance_t *octo,
     (void)Octolinker_SendF32(octo, 871U, s_curve_direction);
     (void)Octolinker_SendF32(octo, 872U,
                              KNEXUS_LINE_CURVE_FEEDFORWARD_RADPS);
+    (void)Octolinker_SendF32(octo, 873U,
+                             s_longitudinal_accel_limit_mps2);
+    (void)Octolinker_SendF32(octo, 874U,
+                             s_longitudinal_decel_limit_mps2);
+    (void)Octolinker_SendF32(octo, 875U,
+                             s_longitudinal_jerk_limit_mps3);
+    (void)Octolinker_SendU8(octo, 876U,
+                            (uint8_t)s_constant_speed_enabled);
 }
 
 #endif

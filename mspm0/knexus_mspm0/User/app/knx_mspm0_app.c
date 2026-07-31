@@ -13,7 +13,6 @@
 #include "knx_param.h"
 #include "knx_sys.h"
 #include "knx_telemetry.h"
-#include "track_sensor.h"
 
 static knx_can_router_t s_can_router;
 static uint8_t s_upper_ready;
@@ -48,8 +47,6 @@ knx_status_t knx_mspm0_upper_init(void)
                               knx_board_get_encoder_right());
     (void)Encoder_Init();
 
-    TrackSensor_AttachPorts(knx_board_get_track_sensor_port());
-    TrackSensor_Init();
     knx_grayscale_init();
 
     (void)knx_spi_init((knx_spi_t *)knx_board_get_bmi088_accel_spi());

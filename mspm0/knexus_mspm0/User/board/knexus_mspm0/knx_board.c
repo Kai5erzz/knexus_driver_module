@@ -10,7 +10,9 @@
 #include "drv8701e.h"
 #include "knx_spi.h"
 #include "knx_can.h"
-#include "track_sensor.h"
+#include "ir_line_sensor.h"
+#include "ir_line_sensor_bus.h"
+#include "knx_grayscale.h"
 
 /* ── LED ports ── */
 static const knx_led_port_t s_led_ports[KNX_LED_MAX_LEDS] = {
@@ -100,6 +102,14 @@ static knx_uart_t s_debug_uart = {
 };
 
 static Octolinker_Instance_t s_octolinker;
+static ir_line_sensor_t s_ir_line_sensor;
+
+static const ir_line_sensor_config_t s_ir_line_sensor_config = {
+    .link = IR_LINE_SENSOR_LINK_I2C,
+    .context = NULL,
+    .timeout_ms = 10U,
+    .io.i2c.read_register = ir_line_sensor_board_i2c_read,
+};
 
 /* ── BMI088 SPI ── */
 static knx_spi_t s_bmi088_accel_spi = {
@@ -115,14 +125,6 @@ static knx_spi_t s_bmi088_gyro_spi = {
 /* ── MCAN ── */
 static knx_can_t s_can = {
     .handle = (void *)CANFD0,
-};
-
-/* ── Track sensor ── */
-static track_sensor_port_t s_track_sensor = {
-    .mux_ad0 = { .port = (void *)TRK_AD0_PORT, .pin = TRK_AD0_AD0_PIN_PIN },
-    .mux_ad1 = { .port = (void *)TRK_AD1_PORT, .pin = TRK_AD1_AD1_PIN_PIN },
-    .mux_ad2 = { .port = (void *)TRK_AD2_PORT, .pin = TRK_AD2_AD2_PIN_PIN },
-    .adc     = { .adc  = (void *)ADC_TRACK_INST, .timeout_ms = 5 },
 };
 
 volatile uint32_t knx_mspm0_board_init_stage;
@@ -144,6 +146,11 @@ knx_status_t knx_board_init(void)
     Octolinker_Init(&s_octolinker, &s_debug_uart);
     knx_mspm0_board_init_stage = 3U;
 
+    /* Available in every application profile, not only contest_2026. */
+    ir_line_sensor_board_i2c_init();
+    (void)ir_line_sensor_init(&s_ir_line_sensor, &s_ir_line_sensor_config);
+    knx_grayscale_attach_sensor(&s_ir_line_sensor);
+
 #if KNX_APP_CONTEST_2026
     /* Contest runtime expects board_init() to complete all physical bindings,
      * matching the STM32 board contract. Module control loops start later. */
@@ -153,8 +160,6 @@ knx_status_t knx_board_init(void)
     (void)Encoder_AttachPorts(&s_encoder_left, &s_encoder_right);
     (void)Encoder_Init();
     knx_mspm0_board_init_stage = 5U;
-    TrackSensor_AttachPorts(&s_track_sensor);
-    TrackSensor_Init();
     knx_mspm0_board_init_stage = 6U;
     (void)knx_spi_init(&s_bmi088_accel_spi);
     (void)knx_spi_init(&s_bmi088_gyro_spi);
@@ -192,7 +197,7 @@ const knx_spi_t *knx_board_get_bmi088_accel_spi(void) { return &s_bmi088_accel_s
 const knx_spi_t *knx_board_get_bmi088_gyro_spi(void)  { return &s_bmi088_gyro_spi; }
 knx_can_t       *knx_board_get_can(void)              { return &s_can; }
 knx_can_t       *knx_board_get_can_bus(uint8_t index) { return (index == 0U) ? &s_can : NULL; }
-const track_sensor_port_t *knx_board_get_track_sensor_port(void) { return &s_track_sensor; }
+ir_line_sensor_t *knx_board_get_ir_line_sensor(void) { return &s_ir_line_sensor; }
 
 /* ── STM32 API parity stubs — MSPM0 has a single MCAN instance ── */
 knx_can_t       *knx_board_get_jc_can(void)           { return &s_can; }

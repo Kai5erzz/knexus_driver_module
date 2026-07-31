@@ -35,6 +35,15 @@ __attribute__((weak)) void knexus_h_display_time_ms(uint32_t elapsed_ms,
     (void)completed;
 }
 
+__attribute__((weak)) void knexus_h_display_invalidate(void)
+{
+}
+
+__attribute__((weak)) void knexus_h_display_set_limit_ms(uint32_t limit_ms)
+{
+    (void)limit_ms;
+}
+
 void knexus_h_ball_init(void)
 {
     s_request = (knexus_h_ball_request_t){

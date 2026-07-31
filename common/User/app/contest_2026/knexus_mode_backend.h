@@ -20,6 +20,18 @@ KNEXUS_DECLARE_MODE(knexus_mode_board_test);
 KNEXUS_DECLARE_MODE(knexus_mode_screw_test);
 KNEXUS_DECLARE_MODE(knexus_mode_static_rod_angle);
 KNEXUS_DECLARE_MODE(knexus_mode_line_follow_ball_center);
+KNEXUS_DECLARE_MODE(knexus_mode_jc4310_link_center);
+KNEXUS_DECLARE_MODE(knexus_mode_screw_offset_center);
+KNEXUS_DECLARE_MODE(knexus_mode_six_menu);
+
+void knexus_jc4310_external_target_set(float target_roll_deg, bool enabled);
+void knexus_jc4310_external_target_set_ex(
+    float target_roll_deg, bool enabled, bool add_motion_compensation);
+void knexus_jc4310_motion_comp_request(bool enabled);
+void knexus_jc4310_force_zero(void);
+uint8_t knexus_jc4310_is_ready(void);
+uint8_t knexus_jc4310_motion_comp_is_ready(void);
+uint8_t knexus_jc4310_is_settled(void);
 
 #undef KNEXUS_DECLARE_MODE
 

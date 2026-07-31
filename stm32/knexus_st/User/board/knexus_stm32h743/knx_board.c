@@ -7,7 +7,9 @@
 #include "bmi088.h"
 #include "encoder.h"
 #include "knx_encoder.h"
-#include "track_sensor.h"
+#include "ir_line_sensor.h"
+#include "ir_line_sensor_bus.h"
+#include "knx_grayscale.h"
 #include "knx_led.h"
 #include "knx_key.h"
 #include "knx_beep.h"
@@ -53,6 +55,14 @@ static knx_uart_t board_debug_uart = {
 };
 
 static Octolinker_Instance_t board_octolinker;
+static ir_line_sensor_t board_ir_line_sensor;
+
+static const ir_line_sensor_config_t board_ir_line_sensor_config = {
+    .link = IR_LINE_SENSOR_LINK_I2C,
+    .context = NULL,
+    .timeout_ms = 10U,
+    .io.i2c.read_register = ir_line_sensor_board_i2c_read,
+};
 
 /* Host communication link: USART2 on PD5/PD6. */
 static knx_uart_t board_host_uart = {
@@ -139,21 +149,6 @@ static const knx_pwm_channel_t drv_current_sample_trigger = {
     .timer   = &htim2,
     .channel = TIM_CHANNEL_4,
     .arr     = 0,
-};
-
-/* ---- Track sensor platform-backed port definitions ----
- *
- * MUX address lines:
- *   AD0 = PB4, AD1 = PB5, AD2 = PB7
- * ADC:
- *   ADC2 (hadc2), single-shot, timeout=1ms
- */
-
-static const track_sensor_port_t track_port = {
-    .mux_ad0 = { .port = GPIOB, .pin = GPIO_PIN_4  },
-    .mux_ad1 = { .port = GPIOB, .pin = GPIO_PIN_5  },
-    .mux_ad2 = { .port = GPIOB, .pin = GPIO_PIN_7  },
-    .adc     = { .adc = &hadc2, .timeout_ms = 1 },
 };
 
 /* ---- Encoder platform-backed port definitions ----
@@ -345,9 +340,10 @@ knx_status_t knx_board_init(void)
     (void)Encoder_AttachPorts(&enc_left_port, &enc_right_port);
     (void)Encoder_Init();
 
-    /* Init track sensor �?bind platform ports first */
-    TrackSensor_AttachPorts(&track_port);
-    TrackSensor_Init();
+    /* New MCU-based module: I2C1 on PB8/PB9, shared with the OLED. */
+    (void)ir_line_sensor_init(&board_ir_line_sensor,
+                              &board_ir_line_sensor_config);
+    knx_grayscale_attach_sensor(&board_ir_line_sensor);
 
     /* Init LEDs */
     knx_led_attach_ports(led_ports, sizeof(led_ports) / sizeof(led_ports[0]));
@@ -390,6 +386,11 @@ const knx_gpio_t *knx_board_get_debug_led(void)
 Octolinker_Instance_t *knx_board_get_octolinker(void)
 {
     return &board_octolinker;
+}
+
+ir_line_sensor_t *knx_board_get_ir_line_sensor(void)
+{
+    return &board_ir_line_sensor;
 }
 
 const knx_encoder_port_t *knx_board_get_encoder_left(void)
@@ -490,7 +491,5 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         knx_board_host_comm_start_rx();
     }
 }
-
-
 
 

@@ -41,6 +41,7 @@ extern float knexus_ball_roll_gravity_sign;
 extern float knexus_ball_compensation_enable;
 extern float knexus_ball_accel_compensation_gain;
 extern float knexus_ball_drag_s_inv;
+extern float knexus_ball_accel_lpf_hz;
 
 void knx_ball_motion_comp_init(void);
 void knx_ball_motion_comp_update(const float chassis_accel_mps2[3],

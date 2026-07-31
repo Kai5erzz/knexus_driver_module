@@ -20,6 +20,8 @@
 // #define KNEXUS_MODE_SCREW_TEST
 // #define KNEXUS_MODE_STATIC_ROD_ANGLE
 // #define KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER
+// #define KNEXUS_MODE_JC4310_LINK_CENTER
+// #define KNEXUS_MODE_SCREW_OFFSET_CENTER
 ```
 
 编译器会检查选择结果。没有启用模式或同时启用多个模式都会直接报错，不会生成
@@ -29,7 +31,7 @@
 
 | 模式 | KEY0 | KEY1 | 主要用途 |
 |---|---|---|---|
-| `LINE_FOLLOW` | 开始黑线/白底两阶段校准 | 校准后启停巡线 | 正常任务开发 |
+| `LINE_FOLLOW` | 启动或急停后重新启动巡线 | 立即急停 | 新版I²C数字循迹模块 |
 | `INTERSECTION_SAMPLE` | 未完成时重新校准；完成后发送矩阵 | 开始采样；运行中按下则停止 | 采集路口 64×8 样本 |
 | `PID_TUNE` | 开始或重新开始正负阶跃 | 立即停止并失能 | 速度与转向基础调参 |
 | `USER` | 由用户定义 | 由用户定义 | 新题目和上层任务 |
@@ -37,9 +39,11 @@
 | `SCREW_TEST` | 按住使 M3508 正转、杆下沉 | 按住使 M3508 反转、杆上升 | 丝杆、极性与限位测试 |
 | `STATIC_ROD_ANGLE` | 不使用 | 不使用 | 底盘静止，杆角自动闭环到 0° |
 | `LINE_FOLLOW_BALL_CENTER` | 与巡线模式相同 | 与巡线模式相同 | 循迹并用丝杆补偿纵向加速度，预留视觉归中闭环 |
+| `JC4310_LINK_CENTER` | 偏置就绪后启动底盘加速度运动补偿 | 立即停止并恢复零力矩 | 底盘电机不发车、人工推动，JC4310按目标杆角补偿纵向加速度 |
+| `SCREW_OFFSET_CENTER` | 检查通信与反馈后启动偏移归零 | 立即停止并解除电机使能 | 底盘静止，上位机偏移外环+丝杆杆角内环 |
 
-校准流程为：先把传感器放在黑线上按 KEY0，蜂鸣器响后移动到白底，等待校准完成。
-LED1 常亮表示校准成功。
+新版循迹模块内部已经完成阈值处理，不需要黑线/白底校准。上电进入待机，
+按 KEY0 发车，按 KEY1 立即急停；急停后再次按 KEY0 可以重新启动。
 
 ## 3. 巡线模式
 
