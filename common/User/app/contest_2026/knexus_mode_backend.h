@@ -32,6 +32,8 @@ void knexus_jc4310_force_zero(void);
 uint8_t knexus_jc4310_is_ready(void);
 uint8_t knexus_jc4310_motion_comp_is_ready(void);
 uint8_t knexus_jc4310_is_settled(void);
+void knexus_jc4310_debug_compact_control_octo(
+    Octolinker_Instance_t *octo);
 
 #undef KNEXUS_DECLARE_MODE
 

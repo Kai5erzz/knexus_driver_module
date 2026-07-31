@@ -817,15 +817,21 @@ static void update_line_follow(const knx26_context_t *context,
      * producing an angular step at either end of a curve.
      */
 #if KNEXUS_H_TASK_ENABLE
-    float curve1 = h_curve_distance_window(
-        s_h_lap_distance_m,
-        KNEXUS_H_CURVE1_START_M, KNEXUS_H_CURVE1_END_M);
-    float curve2 = h_curve_distance_window(
-        s_h_lap_distance_m,
-        KNEXUS_H_CURVE2_START_M, KNEXUS_H_CURVE2_END_M);
-    s_curve_feedforward_activation =
-        (curve1 > curve2) ? curve1 : curve2;
-    s_curve_direction = KNEXUS_H_CURVE_STEERING_SIGN;
+    if (s_constant_speed_enabled) {
+        /* 模式4是A到B直线，不能复用整圈任务按里程生成的弯道前馈。 */
+        s_curve_feedforward_activation = 0.0f;
+        s_curve_direction = 0.0f;
+    } else {
+        float curve1 = h_curve_distance_window(
+            s_h_lap_distance_m,
+            KNEXUS_H_CURVE1_START_M, KNEXUS_H_CURVE1_END_M);
+        float curve2 = h_curve_distance_window(
+            s_h_lap_distance_m,
+            KNEXUS_H_CURVE2_START_M, KNEXUS_H_CURVE2_END_M);
+        s_curve_feedforward_activation =
+            (curve1 > curve2) ? curve1 : curve2;
+        s_curve_direction = KNEXUS_H_CURVE_STEERING_SIGN;
+    }
 #else
     s_curve_feedforward_activation = 0.0f;
     s_curve_direction = 0.0f;
@@ -1030,7 +1036,13 @@ void knx26_user_update(const struct knx26_context *raw_context)
                              s_state == KNX26_LINE_COMPLETE);
 #endif
 
+#if defined(KNEXUS_MODE_SIX_MENU)
+    /* 六模式菜单用长按KEY0返回，因此短按动作必须等释放后再确认，避免用户
+     * 想返回菜单时先误启动底盘。 */
+    if (knx_key_just_released(KNX_KEY_0)) {
+#else
     if (knx_key_just_pressed(KNX_KEY_0)) {
+#endif
 #if KNEXUS_LINE_SENSOR_REQUIRES_CALIBRATION
         start_calibration();
 #else

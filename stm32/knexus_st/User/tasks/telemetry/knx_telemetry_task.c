@@ -3,6 +3,7 @@
 #include "knx_blackbox.h"
 #include "knx_board.h"
 #include "knx_debug_config.h"
+#include "knexus_config.h"
 #include "knx_gimbal_ctrl.h"
 #include "knx_grayscale.h"
 #include "knx_health.h"
@@ -91,6 +92,7 @@ static void knx_telemetry_task_entry(void *argument)
     uint32_t next_wake = osKernelGetTickCount();
 
     for (;;) {
+#if KNEXUS_DEBUG_LEGACY_TELEMETRY_ENABLE
 #if (KNX_MODULE_GIMBAL_EN) && \
     (KNX_ACTIVE_TEST_MODE == KNX_ACTIVE_TEST_MODE_NONE)
         knx_telemetry_task_send_compact_gimbal(octo);
@@ -98,6 +100,9 @@ static void knx_telemetry_task_entry(void *argument)
         (void)knx_telemetry_update();
         knx_key_debug_octo(octo);
         knx_grayscale_debug_octo(octo);
+#endif
+#else
+        (void)octo;
 #endif
 
         next_wake += KNX_TELEMETRY_TASK_PERIOD_MS;

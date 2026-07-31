@@ -1631,4 +1631,25 @@ void knexus_mode_jc4310_link_center_debug_control_octo(
     jc_motion_comp_debug(octo);
 }
 
+void knexus_jc4310_debug_compact_control_octo(
+    Octolinker_Instance_t *octo)
+{
+    if (octo == NULL) return;
+    const uint16_t id = KNEXUS_JC4310_COMP_OCTO_BASE_ID;
+
+    /* Keep existing IDs so old OctoLink workspaces/CSV analysis still work. */
+    (void)Octolinker_SendF32(octo, id + 7U, s_target_roll_deg);
+    (void)Octolinker_SendF32(octo, id + 9U, s_roll_deg);
+    (void)Octolinker_SendF32(octo, id + 10U, s_roll_rate_dps);
+    (void)Octolinker_SendF32(octo, id + 11U, s_angle_error_deg);
+    (void)Octolinker_SendF32(octo, id + 15U, s_command_torque_nm);
+    (void)Octolinker_SendU8(octo, id + 20U, s_upper_limit_active);
+    (void)Octolinker_SendU8(octo, id + 21U, s_lower_limit_active);
+    (void)Octolinker_SendU8(octo, id + 22U, s_limit_blocked);
+    (void)Octolinker_SendU8(octo, id + 54U,
+                            (uint8_t)s_reverse_phase);
+    (void)Octolinker_SendI32(octo, id + 56U,
+                             (int32_t)s_limit_recovery_direction);
+}
+
 #endif

@@ -45,6 +45,7 @@ static uint8_t s_active_mode;
 static uint8_t s_mode3_running;
 static uint8_t s_mode4_running;
 static uint8_t s_mode5_running;
+static uint8_t s_mode6_running;
 static uint8_t s_ball_control_armed;
 static uint8_t s_ball_prelevel_requested;
 static uint8_t s_task_completed;
@@ -74,6 +75,7 @@ static float s_visual_velocity_error_mps;
 static float s_visual_position_to_speed_gain;
 static float s_visual_velocity_kp_gain;
 static float s_visual_deadband_m;
+static float s_visual_task_feedforward_accel_mps2;
 static float s_desired_ball_accel_mps2;
 static float s_gravity_feedforward_roll_deg;
 static float s_target_roll_deg;
@@ -82,9 +84,14 @@ static float s_mode3_offset_rate_cmps;
 static float s_mode3_last_offset_cm;
 static uint32_t s_mode3_last_offset_rx_count;
 static uint32_t s_mode3_last_offset_ms;
+static uint32_t s_mode3_stiction_since_ms;
+static uint8_t s_mode3_stiction_active;
+static int8_t s_mode3_stiction_direction;
 static uint8_t s_last_uplink_mode;
 static uint8_t s_mode4_ball_guard_stop;
 static float s_mode4_speed_request_mps;
+static float s_mode6_target_cm;
+static uint8_t s_mode6_target_sampled;
 static visual_breakaway_state_t s_visual_breakaway_state;
 static uint32_t s_visual_breakaway_tick_ms;
 static int8_t s_visual_breakaway_direction;
@@ -164,9 +171,13 @@ static void visual_controller_reset(
     s_visual_velocity_kp_gain =
         KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
     s_visual_deadband_m = KNEXUS_VISION_CENTER_DEADBAND;
+    s_visual_task_feedforward_accel_mps2 = 0.0f;
     s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
     s_visual_breakaway_tick_ms = 0U;
     s_visual_breakaway_direction = 0;
+    s_mode3_stiction_since_ms = 0U;
+    s_mode3_stiction_active = 0U;
+    s_mode3_stiction_direction = 0;
     s_desired_ball_accel_mps2 = 0.0f;
     s_gravity_feedforward_roll_deg = 0.0f;
     s_target_roll_deg = 0.0f;
@@ -196,12 +207,15 @@ static void visual_controller_update(
     float target_cm, bool enabled,
     bool add_motion_compensation,
     bool allow_breakaway,
+    float task_feedforward_accel_mps2,
     float deadband_m)
 {
     const float dt_s = (float)KNEXUS_APP_PERIOD_MS * 0.001f;
     s_ball_target_cm = target_cm;
     s_visual_deadband_m = deadband_m > 0.0f
         ? deadband_m : KNEXUS_VISION_CENTER_DEADBAND;
+    s_visual_task_feedforward_accel_mps2 = enabled
+        ? task_feedforward_accel_mps2 : 0.0f;
     if (enabled && s_vision_fresh != 0U) {
         if (comm->rx_count != s_last_visual_rx_count) {
             float raw_error = KNEXUS_VISION_CENTER_INPUT_SIGN *
@@ -314,40 +328,177 @@ static void visual_controller_update(
         }
         bool near_target = error_abs_m <=
             KNEXUS_VISION_CENTER_NEAR_ZONE_M;
-        s_visual_position_to_speed_gain = near_target
-            ? KNEXUS_VISION_CENTER_NEAR_POSITION_TO_SPEED_S_INV
-            : KNEXUS_VISION_CENTER_POSITION_TO_SPEED_S_INV;
-        s_visual_velocity_kp_gain = near_target
-            ? KNEXUS_VISION_CENTER_NEAR_VELOCITY_KP_S_INV
-            : KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
+        bool mode3_profile = s_active_mode == 3U &&
+            s_mode3_running != 0U;
+        bool mode3_negative_approach = mode3_profile &&
+            s_mode3_stage == MODE3_STAGE_TO_NEGATIVE;
+        bool mode3_positive_approach = mode3_profile &&
+            s_mode3_stage == MODE3_STAGE_TO_POSITIVE;
+        bool mode3_positive_precision = mode3_profile &&
+            (s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE ||
+             (mode3_positive_approach &&
+              comm->offset >=
+                  KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM));
+        if (mode3_positive_approach) {
+            s_visual_position_to_speed_gain = near_target
+                ? KNEXUS_MENU_MODE3_POSITIVE_NEAR_POSITION_TO_SPEED_S_INV
+                : KNEXUS_MENU_MODE3_POSITIVE_POSITION_TO_SPEED_S_INV;
+            s_visual_velocity_kp_gain =
+                KNEXUS_MENU_MODE3_POSITIVE_VELOCITY_KP_S_INV;
+        } else if (mode3_profile) {
+            s_visual_position_to_speed_gain = near_target
+                ? KNEXUS_MENU_MODE3_NEAR_POSITION_TO_SPEED_S_INV
+                : KNEXUS_MENU_MODE3_POSITION_TO_SPEED_S_INV;
+            s_visual_velocity_kp_gain =
+                KNEXUS_MENU_MODE3_VELOCITY_KP_S_INV;
+        } else {
+            s_visual_position_to_speed_gain = near_target
+                ? KNEXUS_VISION_CENTER_NEAR_POSITION_TO_SPEED_S_INV
+                : KNEXUS_VISION_CENTER_POSITION_TO_SPEED_S_INV;
+            s_visual_velocity_kp_gain = near_target
+                ? KNEXUS_VISION_CENTER_NEAR_VELOCITY_KP_S_INV
+                : KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
+        }
+        float max_target_speed_mps = mode3_positive_approach
+            ? KNEXUS_MENU_MODE3_POSITIVE_MAX_SPEED_MPS
+            : (mode3_negative_approach
+                ? KNEXUS_MENU_MODE3_NEGATIVE_MAX_SPEED_MPS
+                : (mode3_profile
+                ? KNEXUS_MENU_MODE3_MAX_SPEED_MPS
+                : KNEXUS_VISION_CENTER_MAX_SPEED_MPS));
+        float max_ball_accel_mps2 = mode3_positive_approach
+            ? KNEXUS_MENU_MODE3_POSITIVE_MAX_ACCEL_MPS2
+            : (mode3_negative_approach
+                ? KNEXUS_MENU_MODE3_NEGATIVE_MAX_ACCEL_MPS2
+                : (mode3_profile
+                ? KNEXUS_MENU_MODE3_MAX_ACCEL_MPS2
+                : KNEXUS_VISION_CENTER_MAX_ACCEL_MPS2));
         s_visual_target_velocity_mps = clampf_local(
             -s_visual_position_to_speed_gain *
                 s_visual_error,
-            -KNEXUS_VISION_CENTER_MAX_SPEED_MPS,
-            KNEXUS_VISION_CENTER_MAX_SPEED_MPS);
+            -max_target_speed_mps,
+            max_target_speed_mps);
         s_visual_velocity_error_mps = s_visual_error_rate -
             s_visual_target_velocity_mps;
         s_desired_ball_accel_mps2 = clampf_local(
             s_visual_velocity_kp_gain *
                 s_visual_velocity_error_mps +
                 s_visual_i_accel_mps2 +
-                s_visual_breakaway_accel_mps2,
-            -KNEXUS_VISION_CENTER_MAX_ACCEL_MPS2,
-            KNEXUS_VISION_CENTER_MAX_ACCEL_MPS2);
+                s_visual_breakaway_accel_mps2 +
+                s_visual_task_feedforward_accel_mps2,
+            -max_ball_accel_mps2,
+            max_ball_accel_mps2);
+        /*
+         * Mode 3 needs to cross from -5 cm to the positive side before
+         * braking is useful.  Previously the velocity loop saw the ball
+         * exceed its speed reference while it was still negative and
+         * commanded a positive roll.  Rod inertia amplified that premature
+         * reversal and sent the ball back toward -3 cm.
+         *
+         * Before the dedicated braking region, preserve stronger forward
+         * commands but clip every reverse command to a small forward slope.
+         * Inside the braking region the regular position/velocity loop owns
+         * both directions again and settles the ball at +5 cm.
+         */
+        if (mode3_positive_approach &&
+            comm->offset <
+                KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM &&
+            s_desired_ball_accel_mps2 >
+                -KNEXUS_MENU_MODE3_POSITIVE_TRANSIT_MIN_ACCEL_MPS2) {
+            s_desired_ball_accel_mps2 =
+                -KNEXUS_MENU_MODE3_POSITIVE_TRANSIT_MIN_ACCEL_MPS2;
+        }
         float gravity_gain = KNEXUS_VISION_CENTER_ROLLING_GAIN *
             KNEXUS_VISION_CENTER_GRAVITY_MPS2 *
             KNEXUS_VISION_CENTER_GRAVITY_FEEDFORWARD_GAIN;
         float target_roll = asinf(clampf_local(
             s_desired_ball_accel_mps2 / gravity_gain,
             -0.99f, 0.99f)) * 57.2957795f;
+        float max_visual_roll_deg = mode3_positive_approach
+            ? KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG
+            : KNEXUS_VISION_CENTER_MAX_ROLL_DEG;
         target_roll = clampf_local(
             target_roll,
-            -KNEXUS_VISION_CENTER_MAX_ROLL_DEG,
-            KNEXUS_VISION_CENTER_MAX_ROLL_DEG);
+            -max_visual_roll_deg,
+            max_visual_roll_deg);
+        /*
+         * The normal integral is intentionally weak and cannot quickly
+         * overcome linkage/ball static friction.  Detect a non-trivial
+         * position error with near-zero ball speed from the fast, unfiltered
+         * mode-3 velocity estimate.  After only a few visual frames, enforce
+         * a minimum correcting roll.  As soon as the ball moves, release the
+         * floor so the velocity loop can brake; it may re-arm immediately in
+         * the opposite direction after the ball slows, giving the requested
+         * fast small-amplitude reversal around the target.
+         */
+        float mode3_raw_error_m = KNEXUS_VISION_CENTER_INPUT_SIGN *
+            KNEXUS_VISION_CENTER_INPUT_SCALE *
+            (comm->offset - s_ball_target_cm);
+        float mode3_fast_rate_mps = KNEXUS_VISION_CENTER_INPUT_SIGN *
+            KNEXUS_VISION_CENTER_INPUT_SCALE *
+            s_mode3_offset_rate_cmps;
+        int8_t mode3_error_direction = mode3_raw_error_m > 0.0f
+            ? 1 : (mode3_raw_error_m < 0.0f ? -1 : 0);
+        if (!mode3_positive_precision) {
+            s_mode3_stiction_since_ms = 0U;
+            s_mode3_stiction_active = 0U;
+            s_mode3_stiction_direction = 0;
+        } else {
+            if (s_mode3_stiction_active != 0U &&
+                (mode3_error_direction == 0 ||
+                 mode3_error_direction != s_mode3_stiction_direction ||
+                 fabsf(mode3_raw_error_m) <=
+                     KNEXUS_MENU_MODE3_STICTION_EXIT_ERROR_CM *
+                         KNEXUS_VISION_CENTER_INPUT_SCALE ||
+                 fabsf(mode3_fast_rate_mps) >=
+                     KNEXUS_MENU_MODE3_STICTION_RELEASE_RATE_MPS)) {
+                s_mode3_stiction_since_ms = 0U;
+                s_mode3_stiction_active = 0U;
+                s_mode3_stiction_direction = 0;
+            }
+            bool mode3_ball_stuck =
+                fabsf(mode3_raw_error_m) >=
+                    KNEXUS_MENU_MODE3_STICTION_ENTER_ERROR_CM *
+                        KNEXUS_VISION_CENTER_INPUT_SCALE &&
+                fabsf(mode3_fast_rate_mps) <=
+                    KNEXUS_MENU_MODE3_STICTION_MAX_RATE_MPS &&
+                mode3_error_direction != 0;
+            if (s_mode3_stiction_active == 0U) {
+                if (!mode3_ball_stuck) {
+                    s_mode3_stiction_since_ms = 0U;
+                    s_mode3_stiction_direction = 0;
+                } else if (s_mode3_stiction_since_ms == 0U ||
+                           s_mode3_stiction_direction !=
+                               mode3_error_direction) {
+                    s_mode3_stiction_since_ms = context->now_ms;
+                    s_mode3_stiction_direction = mode3_error_direction;
+                } else if ((context->now_ms -
+                            s_mode3_stiction_since_ms) >=
+                               KNEXUS_MENU_MODE3_STICTION_DETECT_MS) {
+                    s_mode3_stiction_active = 1U;
+                }
+            }
+            if (s_mode3_stiction_active != 0U) {
+                float min_roll_deg =
+                    KNEXUS_MENU_MODE3_STICTION_MIN_ROLL_DEG;
+                if (s_mode3_stiction_direction > 0 &&
+                    target_roll < min_roll_deg) {
+                    target_roll = min_roll_deg;
+                } else if (s_mode3_stiction_direction < 0 &&
+                           target_roll > -min_roll_deg) {
+                    target_roll = -min_roll_deg;
+                }
+            }
+        }
         s_gravity_feedforward_roll_deg = target_roll;
+        float target_slew_dps = s_mode3_stiction_active != 0U
+            ? KNEXUS_MENU_MODE3_STICTION_TARGET_SLEW_DPS
+            : (mode3_negative_approach
+                ? KNEXUS_MENU_MODE3_NEGATIVE_TARGET_SLEW_DPS
+                : KNEXUS_VISION_CENTER_TARGET_SLEW_DPS);
         s_target_roll_deg = slew_local(
             s_target_roll_deg, target_roll,
-            KNEXUS_VISION_CENTER_TARGET_SLEW_DPS, dt_s);
+            target_slew_dps, dt_s);
     } else {
         s_visual_error_rate = 0.0f;
         s_visual_error_integral = 0.0f;
@@ -359,6 +510,7 @@ static void visual_controller_update(
             KNEXUS_VISION_CENTER_POSITION_TO_SPEED_S_INV;
         s_visual_velocity_kp_gain =
             KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
+        s_visual_task_feedforward_accel_mps2 = 0.0f;
         s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
         s_visual_breakaway_tick_ms = 0U;
         s_visual_breakaway_direction = 0;
@@ -401,7 +553,7 @@ static void make_mode_line(char out[17], uint8_t mode, bool selected)
 {
     static const char *const names[6] = {
         "M1 RESERVED", "M2 TRACK", "M3 +/-5CM",
-        "M4 A-B+BALL", "M5 LAP+BALL", "M6 RESERVED"
+        "M4 A-B+BALL", "M5 LAP+BALL", "M6 HOLD POS"
     };
     memset(out, ' ', 16U);
     out[16] = '\0';
@@ -468,12 +620,14 @@ static void stop_all_actuators(void)
 {
     (void)knx_chassis_disable();
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_force_stop();
     }
     s_mode3_running = 0U;
     s_mode4_running = 0U;
     s_mode5_running = 0U;
+    s_mode6_running = 0U;
+    s_mode6_running = 0U;
     s_ball_control_armed = 0U;
     s_ball_prelevel_requested = 0U;
     s_mode3_stage = MODE3_STAGE_IDLE;
@@ -496,19 +650,27 @@ static void stop_all_actuators(void)
     s_visual_velocity_kp_gain =
         KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
     s_visual_deadband_m = KNEXUS_VISION_CENTER_DEADBAND;
+    s_visual_task_feedforward_accel_mps2 = 0.0f;
     s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
     s_visual_breakaway_tick_ms = 0U;
     s_visual_breakaway_direction = 0;
     s_desired_ball_accel_mps2 = 0.0f;
     s_gravity_feedforward_roll_deg = 0.0f;
     s_target_roll_deg = 0.0f;
+    s_mode6_target_cm = 0.0f;
+    s_mode6_target_sampled = 0U;
     s_mode3_predicted_offset_cm = 0.0f;
     s_mode3_offset_rate_cmps = 0.0f;
     s_mode3_last_offset_cm = 0.0f;
     s_mode3_last_offset_rx_count = 0U;
     s_mode3_last_offset_ms = 0U;
+    s_mode3_stiction_since_ms = 0U;
+    s_mode3_stiction_active = 0U;
+    s_mode3_stiction_direction = 0;
     s_mode4_ball_guard_stop = 0U;
     s_mode4_speed_request_mps = 0.0f;
+    s_mode6_target_cm = 0.0f;
+    s_mode6_target_sampled = 0U;
 #if defined(KNX_PLATFORM_STM32)
     knexus_jc4310_force_zero();
 #endif
@@ -519,21 +681,28 @@ static void enter_selected_mode(void)
     stop_all_actuators();
     s_active_mode = s_cursor_mode;
     if (s_active_mode == 3U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         s_ball_prelevel_requested = 1U;
     }
     /* 赛题协议规定：只在确认进入模式时上报一次，不周期重发。 */
     send_mode_uplink(s_active_mode);
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_init();
-        if (s_active_mode == 4U) {
-            knx26_line_speed_mps = KNEXUS_MENU_MODE4_LINE_SPEED_MPS;
+        if (s_active_mode == 4U || s_active_mode == 5U ||
+            s_active_mode == 6U) {
+            knx26_line_speed_mps = s_active_mode == 4U
+                ? KNEXUS_MENU_MODE4_LINE_SPEED_MPS
+                : KNEXUS_H_LINE_SPEED_MPS_DEFAULT;
             knexus_line_follow_core_set_longitudinal_limits(
-                KNEXUS_MENU_MODE4_ACCEL_LIMIT_MPS2,
-                KNEXUS_MENU_MODE4_DECEL_LIMIT_MPS2,
-                KNEXUS_MENU_MODE4_JERK_LIMIT_MPS3);
-            knexus_line_follow_core_set_constant_speed(true);
+                KNEXUS_MENU_MOVING_ACCEL_LIMIT_MPS2,
+                KNEXUS_MENU_MOVING_DECEL_LIMIT_MPS2,
+                KNEXUS_MENU_MOVING_JERK_LIMIT_MPS3);
+            /* Mode4 is the straight AB test.  Modes5/6 retain the existing
+             * corner-aware line speed logic so ball control never interferes
+             * with steering or forces a constant-speed corner. */
+            knexus_line_follow_core_set_constant_speed(
+                s_active_mode == 4U);
         } else {
             knx26_line_speed_mps = KNEXUS_H_LINE_SPEED_MPS_DEFAULT;
             knexus_line_follow_core_set_longitudinal_limits(
@@ -549,6 +718,9 @@ static void enter_selected_mode(void)
         } else if (s_active_mode == 5U) {
             knexus_h_display_set_limit_ms(
                 KNEXUS_MENU_MODE5_TIME_LIMIT_MS);
+        } else if (s_active_mode == 6U) {
+            knexus_h_display_set_limit_ms(
+                KNEXUS_MENU_MODE6_TIME_LIMIT_MS);
         } else {
             knexus_h_display_set_limit_ms(
                 KNEXUS_H_SCORE_TIME_LIMIT_MS);
@@ -578,7 +750,8 @@ static void update_menu_oled(uint32_t now_ms,
 
     /* 行驶模式继续使用赛题计时界面，避免菜单缓存覆盖计时显示。 */
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) return;
+        s_active_mode == 5U ||
+        (s_active_mode == 6U && s_mode6_running != 0U)) return;
 
     char line[17];
     if (s_active_mode == 0U) {
@@ -614,6 +787,14 @@ static void update_menu_oled(uint32_t now_ms,
         }
         make_offset_line(line, comm->offset);
         oled_line(3U, line);
+    } else if (s_active_mode == 6U) {
+        if (s_ball_control_armed == 0U) {
+            oled_line(2U, "LEVELING ROLL0");
+        } else {
+            oled_line(2U, "K0 SAMPLE+START");
+        }
+        make_offset_line(line, comm->offset);
+        oled_line(3U, line);
     } else {
         oled_line(2U, "UPLINK ONLY");
         oled_line(3U, "NO ACTUATION");
@@ -622,7 +803,7 @@ static void update_menu_oled(uint32_t now_ms,
         make_time_line(line, s_task_elapsed_ms);
         oled_line(4U, line);
     } else {
-        oled_line(4U, "HOLD K0+K1 MENU");
+        oled_line(4U, "HOLD K0 MENU");
     }
 }
 
@@ -642,7 +823,7 @@ static void update_mode3(const knx26_context_t *context,
         s_task_timeout = 0U;
         knx_beep_beep(100U);
     }
-    if (knx_key_just_pressed(KNX_KEY_0)) {
+    if (knx_key_just_released(KNX_KEY_0)) {
 #if defined(KNX_PLATFORM_STM32)
         if (s_vision_fresh != 0U &&
             s_ball_control_armed != 0U &&
@@ -736,10 +917,23 @@ static void update_mode3(const knx26_context_t *context,
                s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE) {
         target_cm = KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM;
     }
+    float mode3_feedforward_accel_mps2 = 0.0f;
+    if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE) {
+        mode3_feedforward_accel_mps2 =
+            comm->offset >= KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM
+                ? KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_FF_MPS2
+                : KNEXUS_MENU_MODE3_POSITIVE_APPROACH_FF_MPS2;
+    } else if (s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE &&
+               comm->offset < KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM -
+                   KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_ENABLE_ERROR_CM) {
+        mode3_feedforward_accel_mps2 =
+            KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_MPS2;
+    }
     visual_controller_update(
         context, comm, target_cm,
         s_ball_control_armed != 0U, false,
         s_mode3_stage != MODE3_STAGE_HOLD_POSITIVE,
+        mode3_feedforward_accel_mps2,
         s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE
             ? KNEXUS_MENU_MODE3_HOLD_DEADBAND_CM *
                 KNEXUS_VISION_CENTER_INPUT_SCALE
@@ -747,12 +941,12 @@ static void update_mode3(const knx26_context_t *context,
 }
 
 static void moving_task_record_ball(
-    const knx_pendulum_comm_state_t *comm)
+    const knx_pendulum_comm_state_t *comm, float target_cm)
 {
     if (s_vision_fresh == 0U ||
         comm->rx_count == s_task_last_ball_rx_count) return;
     s_task_last_ball_rx_count = comm->rx_count;
-    float error_cm = fabsf(comm->offset);
+    float error_cm = fabsf(comm->offset - target_cm);
     if (error_cm > s_task_ball_max_error_cm) {
         s_task_ball_max_error_cm = error_cm;
     }
@@ -767,6 +961,7 @@ static void moving_task_finish(uint8_t mode, bool completed,
     knexus_line_follow_core_force_stop();
     if (mode == 4U) s_mode4_running = 0U;
     if (mode == 5U) s_mode5_running = 0U;
+    if (mode == 6U) s_mode6_running = 0U;
     s_task_completed = completed ? 1U : 0U;
     s_task_timeout = timeout ? 1U : 0U;
     knexus_h_display_time_ms(
@@ -778,21 +973,55 @@ static void update_moving_ball_task(
     const knx_pendulum_comm_state_t *comm)
 {
     update_vision_fresh(context, comm);
+    bool mode6 = mode == 6U;
     uint8_t *running = mode == 4U
-        ? &s_mode4_running : &s_mode5_running;
-    if (*running == 0U && s_vision_fresh == 0U) {
+        ? &s_mode4_running
+        : (mode == 5U ? &s_mode5_running : &s_mode6_running);
+    if (!mode6 && *running == 0U && s_vision_fresh == 0U) {
         s_ball_control_armed = 0U;
     }
-    update_auto_prelevel(comm);
+    if (!mode6) {
+        update_auto_prelevel(comm);
+    } else if (*running == 0U) {
+        /* Question 6: level the rod itself without moving the ball toward
+         * zero.  The arbitrary ball position is sampled only on KEY0. */
+        s_ball_prelevel_requested = 0U;
+#if defined(KNX_PLATFORM_STM32)
+        if (knexus_jc4310_is_ready() != 0U) {
+            s_ball_control_armed = 1U;
+            knexus_jc4310_external_target_set_ex(0.0f, true, false);
+        } else {
+            s_ball_control_armed = 0U;
+            knexus_jc4310_force_zero();
+        }
+#else
+        s_ball_control_armed = 0U;
+#endif
+    }
     bool reject_start = false;
 
-    if (knx_key_just_pressed(KNX_KEY_0)) {
+    if (knx_key_just_released(KNX_KEY_0)) {
 #if defined(KNX_PLATFORM_STM32)
-        if (s_vision_fresh != 0U &&
+        bool common_ready = s_vision_fresh != 0U &&
             s_ball_control_armed != 0U &&
-            fabsf(comm->offset) <= KNEXUS_MENU_BALL_ERROR_LIMIT_CM &&
             knexus_jc4310_is_ready() != 0U &&
-            knexus_jc4310_motion_comp_is_ready() != 0U) {
+            knexus_jc4310_motion_comp_is_ready() != 0U;
+        bool position_ready = mode6
+            ? (fabsf(comm->offset) <=
+                   KNEXUS_MENU_MODE6_TARGET_ABS_MAX_CM &&
+               knexus_jc4310_is_settled() != 0U)
+            : fabsf(comm->offset) <= KNEXUS_MENU_BALL_ERROR_LIMIT_CM;
+        if (common_ready && position_ready) {
+            if (mode6) {
+                /* KEY0 edge is the official task start: sample once and keep
+                 * the target immutable for the entire lap. */
+                s_mode6_target_cm = clampf_local(
+                    comm->offset,
+                    -KNEXUS_MENU_MODE6_TARGET_ABS_MAX_CM,
+                    KNEXUS_MENU_MODE6_TARGET_ABS_MAX_CM);
+                s_mode6_target_sampled = 1U;
+                visual_controller_reset(comm, s_mode6_target_cm);
+            }
             *running = 1U;
             s_task_completed = 0U;
             s_task_timeout = 0U;
@@ -800,7 +1029,9 @@ static void update_moving_ball_task(
             s_task_start_position_m = 0.0f;
             s_task_elapsed_ms = 0U;
             s_task_distance_m = 0.0f;
-            s_task_ball_max_error_cm = fabsf(comm->offset);
+            s_task_ball_max_error_cm = mode6
+                ? fabsf(comm->offset - s_mode6_target_cm)
+                : fabsf(comm->offset);
             s_task_ball_violation_count = 0U;
             s_task_last_ball_rx_count = comm->rx_count;
             s_mode4_ball_guard_stop = 0U;
@@ -858,11 +1089,13 @@ static void update_moving_ball_task(
             s_task_start_position_m);
         s_task_distance_m = core_distance_m > local_distance_m
             ? core_distance_m : local_distance_m;
-        moving_task_record_ball(comm);
+        moving_task_record_ball(
+            comm, mode6 ? s_mode6_target_cm : 0.0f);
 
         uint32_t limit_ms = mode == 4U
             ? KNEXUS_MENU_MODE4_TIME_LIMIT_MS
-            : KNEXUS_MENU_MODE5_TIME_LIMIT_MS;
+            : (mode6 ? KNEXUS_MENU_MODE6_TIME_LIMIT_MS
+                     : KNEXUS_MENU_MODE5_TIME_LIMIT_MS);
         if (mode == 4U && s_task_distance_m >=
                 KNEXUS_MENU_MODE4_AB_DISTANCE_M) {
             moving_task_finish(mode, true, false);
@@ -890,12 +1123,22 @@ static void update_moving_ball_task(
         s_ball_prelevel_requested = 0U;
     }
 
-    visual_controller_update(
-        context, comm, 0.0f,
-        s_ball_control_armed != 0U,
-        *running != 0U,
-        *running == 0U,
-        KNEXUS_VISION_CENTER_DEADBAND);
+    if (mode6 && *running == 0U) {
+#if defined(KNX_PLATFORM_STM32)
+        if (s_ball_control_armed != 0U) {
+            knexus_jc4310_external_target_set_ex(0.0f, true, false);
+        }
+#endif
+    } else {
+        visual_controller_update(
+            context, comm,
+            mode6 ? s_mode6_target_cm : 0.0f,
+            s_ball_control_armed != 0U,
+            *running != 0U,
+            *running == 0U,
+            0.0f,
+            KNEXUS_VISION_CENTER_DEADBAND);
+    }
 }
 
 void knexus_mode_six_menu_init(void)
@@ -954,21 +1197,12 @@ void knexus_mode_six_menu_update(const struct knx26_context *raw_context)
     knx_pendulum_comm_state_t comm;
     knx_pendulum_comm_snapshot(&comm);
 
-    bool both_pressed = knx_key_is_pressed(KNX_KEY_0) &&
-                        knx_key_is_pressed(KNX_KEY_1);
-    if (!both_pressed) s_exit_latched = 0U;
-    if (s_active_mode != 0U && both_pressed) {
-        /* Return-menu chord is also an immediate stop chord.  Do not wait
-         * one second with either the chassis or link motor still active. */
-        stop_all_actuators();
-        if (!s_exit_latched &&
-            knx_key_get_hold_ms(KNX_KEY_0) >= KNEXUS_MENU_EXIT_HOLD_MS &&
-            knx_key_get_hold_ms(KNX_KEY_1) >= KNEXUS_MENU_EXIT_HOLD_MS) {
-            return_to_menu();
-        }
-#if defined(KNX_PLATFORM_STM32)
-        knexus_mode_jc4310_link_center_update(raw_context);
-#endif
+    bool key0_pressed = knx_key_is_pressed(KNX_KEY_0);
+    if (!key0_pressed) s_exit_latched = 0U;
+    if (s_active_mode != 0U && key0_pressed &&
+        s_exit_latched == 0U &&
+        knx_key_get_hold_ms(KNX_KEY_0) >= KNEXUS_MENU_EXIT_HOLD_MS) {
+        return_to_menu();
         update_menu_oled(context->now_ms, &comm);
         return;
     }
@@ -994,6 +1228,8 @@ void knexus_mode_six_menu_update(const struct knx26_context *raw_context)
         update_moving_ball_task(4U, context, &comm);
     } else if (s_active_mode == 5U) {
         update_moving_ball_task(5U, context, &comm);
+    } else if (s_active_mode == 6U) {
+        update_moving_ball_task(6U, context, &comm);
     } else {
         stop_all_actuators();
     }
@@ -1009,7 +1245,7 @@ void knexus_mode_six_menu_on_intersection(
     const knx_intersection_result_t *result)
 {
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_on_intersection(result);
     }
 }
@@ -1018,7 +1254,7 @@ void knexus_mode_six_menu_on_peer_message(
     const knx_comm_message_t *message)
 {
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_on_peer_message(message);
     }
 }
@@ -1031,6 +1267,38 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
     knx_pendulum_comm_state_t comm;
     knx_pendulum_comm_snapshot(&comm);
     const uint16_t id = KNEXUS_MENU_OCTO_BASE_ID;
+#if KNEXUS_MENU_MODE3_OCTO_COMPACT_ENABLE
+    if (s_active_mode == 3U) {
+        /* 10Hz compact diagnostics.  The 50Hz rod loop is emitted separately
+         * by knexus_jc4310_debug_compact_control_octo(). */
+        (void)Octolinker_SendU8(octo, id + 1U, s_active_mode);
+        (void)Octolinker_SendU8(octo, id + 2U, s_mode3_running);
+        (void)Octolinker_SendU8(octo, id + 3U, s_vision_fresh);
+        (void)Octolinker_SendF32(octo, id + 4U, comm.offset);
+        (void)Octolinker_SendF32(octo, id + 9U, s_visual_error);
+        (void)Octolinker_SendF32(octo, id + 10U,
+                                 s_visual_error_rate);
+        (void)Octolinker_SendF32(octo, id + 11U,
+                                 s_desired_ball_accel_mps2);
+        (void)Octolinker_SendF32(octo, id + 12U,
+                                 s_target_roll_deg);
+        (void)Octolinker_SendU8(octo, id + 17U,
+                                (uint8_t)s_mode3_stage);
+        (void)Octolinker_SendF32(octo, id + 33U,
+                                 s_mode3_offset_rate_cmps);
+        (void)Octolinker_SendF32(octo, id + 42U,
+                                 s_visual_task_feedforward_accel_mps2);
+        (void)Octolinker_SendU8(octo, id + 43U,
+                                s_mode3_stiction_active);
+        (void)Octolinker_SendI32(
+            octo, id + 44U, (int32_t)s_mode3_stiction_direction);
+        (void)Octolinker_SendU32(
+            octo, id + 46U,
+            s_mode3_stiction_since_ms != 0U
+                ? knx_millis() - s_mode3_stiction_since_ms : 0U);
+        return;
+    }
+#endif
     (void)Octolinker_SendU8(octo, id + 0U, s_cursor_mode);
     (void)Octolinker_SendU8(octo, id + 1U, s_active_mode);
     (void)Octolinker_SendU8(octo, id + 2U, s_mode3_running);
@@ -1111,8 +1379,20 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
                              s_visual_velocity_kp_gain);
     (void)Octolinker_SendF32(octo, id + 41U,
                              s_visual_deadband_m * 100.0f);
+    (void)Octolinker_SendF32(octo, id + 42U,
+                             s_visual_task_feedforward_accel_mps2);
+    (void)Octolinker_SendU8(octo, id + 43U,
+                            s_mode3_stiction_active);
+    (void)Octolinker_SendI32(octo, id + 44U,
+                             (int32_t)s_mode3_stiction_direction);
+    (void)Octolinker_SendF32(octo, id + 45U,
+                             KNEXUS_MENU_MODE3_STICTION_MIN_ROLL_DEG);
+    (void)Octolinker_SendU32(
+        octo, id + 46U,
+        s_mode3_stiction_since_ms != 0U
+            ? knx_millis() - s_mode3_stiction_since_ms : 0U);
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_debug_octo(octo, base_id);
     }
 #if defined(KNX_PLATFORM_STM32)
@@ -1124,10 +1404,16 @@ void knexus_mode_six_menu_debug_control_octo(
     Octolinker_Instance_t *octo, uint16_t base_id)
 {
     if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U) {
+        s_active_mode == 5U || s_active_mode == 6U) {
         knexus_line_follow_core_debug_control_octo(octo, base_id);
     }
 #if defined(KNX_PLATFORM_STM32)
+#if KNEXUS_MENU_MODE3_OCTO_COMPACT_ENABLE
+    if (s_active_mode == 3U) {
+        knexus_jc4310_debug_compact_control_octo(octo);
+        return;
+    }
+#endif
     knexus_mode_jc4310_link_center_debug_control_octo(octo, base_id);
 #else
     (void)octo;

@@ -55,9 +55,11 @@
 /* ======================== 2. 调试与任务周期 ======================== */
 
 #define KNEXUS_DEBUG_OCTOLINK_ENABLE        1U  /* 1=发送 OctoLink 数据；0=完全关闭 */
-#define KNEXUS_DEBUG_LINE_DATA_ENABLE       1U  /* 巡线归一化值、误差和控制量 */
-#define KNEXUS_DEBUG_PID_DATA_ENABLE        1U  /* PID 目标、反馈、误差和输出 */
-#define KNEXUS_DEBUG_IMU_DATA_ENABLE        1U  /* BMI088、温控和零偏学习信息 */
+#define KNEXUS_DEBUG_LINE_DATA_ENABLE       0U  /* Mode3调参期间关闭巡线批量输出 */
+#define KNEXUS_DEBUG_PID_DATA_ENABLE        0U  /* Mode3调参期间关闭底盘PID批量输出 */
+#define KNEXUS_DEBUG_IMU_DATA_ENABLE        0U  /* Mode3调参期间关闭BMI088批量输出 */
+/* 旧遥测任务会重复发送电机、底盘、BMI088、按键和灰度数据；当前关闭。 */
+#define KNEXUS_DEBUG_LEGACY_TELEMETRY_ENABLE 0U
 
 /* 当前赛题不需要路口判断：0=不创建推理任务、不运行TinyCNN；1=启用。 */
 #define KNEXUS_INTERSECTION_ENABLE           0U
@@ -664,38 +666,97 @@
 
 /* ======================== 9.5 六模式菜单 / 模式3视觉归中 ======================== */
 
-/* 菜单：KEY0切换，KEY1确认；运行中同时长按KEY0+KEY1一秒返回菜单。 */
+/* 菜单：KEY0切换，KEY1确认；进入任意模式后长按KEY0一秒返回主菜单。 */
 #define KNEXUS_MENU_MODE_COUNT                                6U
 #define KNEXUS_MENU_EXIT_HOLD_MS                           1000U
 #define KNEXUS_MENU_OLED_UPDATE_MS                          100U
 #define KNEXUS_MENU_OCTO_BASE_ID                           1280U
+/* Mode3只发送调参必需量；避免每20ms打包上百个Octo变量拖慢控制。 */
+#define KNEXUS_MENU_MODE3_OCTO_COMPACT_ENABLE                 1U
 
 /* 六模式菜单中的H题任务。模式3按用户指定执行-5cm -> +5cm并最终保持；
- * 模式4运行A到B的1.5m直线；模式5完成整圈。模式4/5均叠加运动补偿。 */
+ * 模式4运行A到B；模式5以0cm为目标整圈；模式6采样任意球位后整圈保持。
+ * 模式4/5/6均叠加底盘运动补偿，但球控不得改变巡线速度或启停状态。 */
 #define KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM               -5.00f
 #define KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM                5.00f
 #define KNEXUS_MENU_MODE3_REACH_TOLERANCE_CM                0.80f
 #define KNEXUS_MENU_MODE3_HOLD_DEADBAND_CM                  0.45f
+/* 正向折返先维持适量右移前馈，到达制动区后撤掉。 */
+#define KNEXUS_MENU_MODE3_POSITIVE_APPROACH_FF_MPS2        -0.08f
+/*
+ * -5cm折返后先完成“单向跨零”，到达该位置前不允许速度环给出反向坡度。
+ * pj1.csv中小球仍在负侧时速度已达到约0.095m/s，而旧目标速度仅0.070m/s，
+ * 速度环因此提前制动并令实际杆角冲到+7.17deg，直接把球送回负侧。
+ * 到+2.5cm后才解除单向约束并撤掉前馈，留下约2.5cm用于平滑制动至+5cm。
+ */
+#define KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM          2.50f
+#define KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_FF_MPS2          -0.10f
+/* 单向跨零阶段至少维持这一右移加速度；负值对应负roll、钢球向正偏移移动。 */
+#define KNEXUS_MENU_MODE3_POSITIVE_TRANSIT_MIN_ACCEL_MPS2    0.04f
+/*
+ * 进入最终保持后，若球回落到目标左侧超过0.20cm，补一个较小的静态前馈；
+ * 回到4.8cm以上立即撤掉，避免固定偏置把球持续推过+5cm。
+ */
+#define KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_ENABLE_ERROR_CM   0.20f
+#define KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_MPS2             -0.06f
+/*
+ * 正向接近/保持阶段的快速静摩擦捕获：偏差存在但球速很低时，不再等待慢积分，
+ * 连续约3帧(120fps下约24ms)即强制目标杆角达到最小值，使钢球确定开始滚动。
+ * 球速建立后立即释放给速度环制动；允许目标附近有小幅往复，但目标是始终留在
+ * +/-0.8cm评分带内。
+ */
+#define KNEXUS_MENU_MODE3_STICTION_ENTER_ERROR_CM            0.30f
+#define KNEXUS_MENU_MODE3_STICTION_EXIT_ERROR_CM             0.18f
+#define KNEXUS_MENU_MODE3_STICTION_MAX_RATE_MPS             0.012f
+#define KNEXUS_MENU_MODE3_STICTION_RELEASE_RATE_MPS         0.025f
+#define KNEXUS_MENU_MODE3_STICTION_DETECT_MS                   24U
+#define KNEXUS_MENU_MODE3_STICTION_MIN_ROLL_DEG              3.80f
+#define KNEXUS_MENU_MODE3_STICTION_TARGET_SLEW_DPS         140.00f
 /* 2026-07-31采样：到达-5cm时球速约-10cm/s，连杆换向后继续冲到-6.46cm。
  * 用视觉速度预测130ms后的球位；进入末端2cm且预测将越过-5时立即开始反向
  * 制动。球仍靠已有惯性到达-5，但不会等越线后才让连杆换向。 */
-#define KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_LOOKAHEAD_S        0.13f
-#define KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_ARM_DISTANCE_CM    2.00f
+#define KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_LOOKAHEAD_S        0.20f
+#define KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_ARM_DISTANCE_CM    2.50f
 #define KNEXUS_MENU_MODE3_TIME_LIMIT_MS                    5000U
+/* 模式3专用的高阻尼位置-速度串级参数，限制大行程折返时的摆幅。 */
+#define KNEXUS_MENU_MODE3_POSITION_TO_SPEED_S_INV           1.25f
+#define KNEXUS_MENU_MODE3_NEAR_POSITION_TO_SPEED_S_INV      2.20f
+#define KNEXUS_MENU_MODE3_VELOCITY_KP_S_INV                 5.50f
+#define KNEXUS_MENU_MODE3_MAX_SPEED_MPS                     0.055f
+#define KNEXUS_MENU_MODE3_MAX_ACCEL_MPS2                    0.30f
+/* 0 -> -5cm单独软启动，避免起步瞬间把杆角和力矩直接推到上限。 */
+#define KNEXUS_MENU_MODE3_NEGATIVE_MAX_SPEED_MPS            0.040f
+#define KNEXUS_MENU_MODE3_NEGATIVE_MAX_ACCEL_MPS2           0.16f
+#define KNEXUS_MENU_MODE3_NEGATIVE_TARGET_SLEW_DPS         14.00f
+/* 去+5cm阶段单独提高一档，负端制动和最终保持仍使用上面的柔和参数。 */
+#define KNEXUS_MENU_MODE3_POSITIVE_POSITION_TO_SPEED_S_INV  1.40f
+#define KNEXUS_MENU_MODE3_POSITIVE_NEAR_POSITION_TO_SPEED_S_INV 2.50f
+#define KNEXUS_MENU_MODE3_POSITIVE_VELOCITY_KP_S_INV        5.50f
+#define KNEXUS_MENU_MODE3_POSITIVE_MAX_SPEED_MPS            0.070f
+#define KNEXUS_MENU_MODE3_POSITIVE_MAX_ACCEL_MPS2           0.44f
+#define KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG              3.60f
 /* B点理论里程1.50m；多走2cm确保车体测试基准点已经真正“通过B”。 */
 #define KNEXUS_MENU_MODE4_AB_DISTANCE_M                     1.52f
 #define KNEXUS_MENU_MODE4_TIME_LIMIT_MS                    8000U
 /*
- * 模式4使用独立的低速匀速配置，不影响模式2/5。球偏移只由连杆闭环处理，
- * 不再通过底盘反复启停；接近B点时才按剩余制动距离平滑停车。
+ * 模式4/5/6保持原巡线目标速度0.45m/s，只降低纵向加速度以减小钢球扰动。
+ * 对模式4的1.52m直线，理想梯形速度模型要求a约>=0.10m/s^2才能在8s内完成；
+ * 取0.12并给制动留余量。该限制只约束纵向速度建立，不修改循迹转向输出。
  */
-#define KNEXUS_MENU_MODE4_LINE_SPEED_MPS                    0.24f
-#define KNEXUS_MENU_MODE4_ACCEL_LIMIT_MPS2                  0.25f
-#define KNEXUS_MENU_MODE4_DECEL_LIMIT_MPS2                  0.40f
-#define KNEXUS_MENU_MODE4_JERK_LIMIT_MPS3                   1.50f
+#define KNEXUS_MENU_MODE4_LINE_SPEED_MPS                    0.45f
+#define KNEXUS_MENU_MOVING_ACCEL_LIMIT_MPS2                 0.12f
+#define KNEXUS_MENU_MOVING_DECEL_LIMIT_MPS2                 0.18f
+#define KNEXUS_MENU_MOVING_JERK_LIMIT_MPS3                  0.80f
+/* 兼容旧名称，模式4/5/6实际统一使用上面的MOVING参数。 */
+#define KNEXUS_MENU_MODE4_ACCEL_LIMIT_MPS2 KNEXUS_MENU_MOVING_ACCEL_LIMIT_MPS2
+#define KNEXUS_MENU_MODE4_DECEL_LIMIT_MPS2 KNEXUS_MENU_MOVING_DECEL_LIMIT_MPS2
+#define KNEXUS_MENU_MODE4_JERK_LIMIT_MPS3  KNEXUS_MENU_MOVING_JERK_LIMIT_MPS3
 #define KNEXUS_MENU_MODE4_FINISH_MIN_SPEED_MPS              0.06f
 #define KNEXUS_MENU_MODE4_FINISH_MARGIN_M                   0.025f
 #define KNEXUS_MENU_MODE5_TIME_LIMIT_MS                   30000U
+#define KNEXUS_MENU_MODE6_TIME_LIMIT_MS                   30000U
+/* 第六问的指定位置必须留在25cm摆杆可观测范围内。 */
+#define KNEXUS_MENU_MODE6_TARGET_ABS_MAX_CM                 12.50f
 #define KNEXUS_MENU_BALL_ERROR_LIMIT_CM                     0.80f
 
 /*
