@@ -16,13 +16,16 @@
 // #define KNEXUS_MODE_INTERSECTION_SAMPLE
 // #define KNEXUS_MODE_PID_TUNE
 // #define KNEXUS_MODE_USER
-#define KNEXUS_MODE_BOARD_TEST
+// #define KNEXUS_MODE_BOARD_TEST
+// #define KNEXUS_MODE_SCREW_TEST
+// #define KNEXUS_MODE_STATIC_ROD_ANGLE
+// #define KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER
 ```
 
 编译器会检查选择结果。没有启用模式或同时启用多个模式都会直接报错，不会生成
 行为不确定的固件。切换模式后需要重新构建并烧录。
 
-## 2. 四种模式的按键流程
+## 2. 工作模式与按键流程
 
 | 模式 | KEY0 | KEY1 | 主要用途 |
 |---|---|---|---|
@@ -31,6 +34,9 @@
 | `PID_TUNE` | 开始或重新开始正负阶跃 | 立即停止并失能 | 速度与转向基础调参 |
 | `USER` | 由用户定义 | 由用户定义 | 新题目和上层任务 |
 | `BOARD_TEST` | 长按一秒启用/关闭电机循环测试 | 立即停止并解除电机使能 | 全板硬件验收 |
+| `SCREW_TEST` | 按住使 M3508 正转、杆下沉 | 按住使 M3508 反转、杆上升 | 丝杆、极性与限位测试 |
+| `STATIC_ROD_ANGLE` | 不使用 | 不使用 | 底盘静止，杆角自动闭环到 0° |
+| `LINE_FOLLOW_BALL_CENTER` | 与巡线模式相同 | 与巡线模式相同 | 循迹并用丝杆补偿纵向加速度，预留视觉归中闭环 |
 
 校准流程为：先把传感器放在黑线上按 KEY0，蜂鸣器响后移动到白底，等待校准完成。
 LED1 常亮表示校准成功。
@@ -53,6 +59,16 @@ LED1 常亮表示校准成功。
 - `KNEXUS_LINE_MIN_STRENGTH_DEFAULT`：弱线与搜线过渡阈值。
 - `KNEXUS_LINE_RECOVERY_RADPS_DEFAULT`：弱线时的搜线力度。
 - `KNEXUS_LINE_ERROR_FILTER_ALPHA`：误差滤波；越大响应越快，噪声也越明显。
+- `KNEXUS_LINE_ANGULAR_ATTACK_ALPHA`：转向建立速度，入弯响应主要看这一项。
+- `KNEXUS_LINE_ANGULAR_RELEASE_ALPHA`：同方向转向释放速度，越小越能抑制弯中顿挫。
+- `KNEXUS_LINE_ANGULAR_REVERSE_ALPHA`：真实反向和回中时的响应速度。
+- `KNEXUS_LINE_ANGULAR_SLEW_RADPS2`：转向命令的最大变化率，用来消除灰度重心跨探头时的单次震动；不会降低稳态转弯力度。
+- `KNEXUS_LINE_CURVE_FEEDFORWARD_RADPS`：弯道稳定前馈角速度，用来保持转弯力度而不提高位置反馈增益。
+- `KNEXUS_H_CURVE_SPEED_SCALE`：固定赛道弯道速度相对直线速度的比例。
+- `KNEXUS_H_CURVE1_START_M/END_M`：从A点计程的第一段弯道起止位置。
+- `KNEXUS_H_CURVE2_START_M/END_M`：从A点计程的第二段弯道起止位置。
+- `KNEXUS_H_CURVE_RAMP_M`：弯道前馈在入口和出口平滑建立/释放的距离。
+- `KNEXUS_H_CURVE_STEERING_SIGN`：顺时针赛道的固定转向方向。
 - `KNEXUS_LINE_D_FILTER_ALPHA`：微分滤波；越小越平滑，但响应更慢。
 
 带 `DEFAULT` 的参数会在上电时复制到 `knx26_line_kp` 等普通变量。因此可用

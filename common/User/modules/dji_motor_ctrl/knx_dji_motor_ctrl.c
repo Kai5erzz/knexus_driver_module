@@ -13,6 +13,10 @@ static bool s_initialized;
 static bool s_enabled;
 static knx_status_t s_last_tx_status = KNX_NOT_READY;
 static uint32_t s_last_tx_attempt_ms;
+static float s_max_current_cmd = KNEXUS_DJI_PID_MAX_CURRENT_CMD;
+static float s_current_feedforward_cmd;
+static float s_current_feedforward_min_rpm;
+static float s_target_slew_rpmps = KNEXUS_DJI_TARGET_SLEW_RPM_PER_S;
 
 volatile int32_t dji_init_status = KNX_NOT_READY;
 volatile uint32_t dji_tx_count;
@@ -33,7 +37,14 @@ static int16_t m3508_speed_control(const dji_motor_measure_t *measure)
     if (measure == NULL || s_speed_pid == NULL) return 0;
     float output = pid_calculate(s_speed_pid, measure->speed_rpm,
                                  s_target_used_rpm);
-    output = limit_abs(output, KNEXUS_DJI_PID_MAX_CURRENT_CMD);
+    if (s_current_feedforward_cmd > 0.0f &&
+        s_target_used_rpm >= s_current_feedforward_min_rpm) {
+        output += s_current_feedforward_cmd;
+    } else if (s_current_feedforward_cmd > 0.0f &&
+               s_target_used_rpm <= -s_current_feedforward_min_rpm) {
+        output -= s_current_feedforward_cmd;
+    }
+    output = limit_abs(output, s_max_current_cmd);
     dji_pid_output = (int32_t)output;
     return (int16_t)output;
 }
@@ -92,6 +103,10 @@ knx_status_t knx_dji_motor_ctrl_init(void)
 
     s_target_rpm = 0.0f;
     s_target_used_rpm = 0.0f;
+    s_max_current_cmd = KNEXUS_DJI_PID_MAX_CURRENT_CMD;
+    s_current_feedforward_cmd = 0.0f;
+    s_current_feedforward_min_rpm = 0.0f;
+    s_target_slew_rpmps = KNEXUS_DJI_TARGET_SLEW_RPM_PER_S;
     s_last_tx_attempt_ms = knx_millis();
     s_enabled = false;
     s_initialized = true;
@@ -112,7 +127,7 @@ void knx_dji_motor_ctrl_update(float dt_s)
     if (!s_enabled) return;
     if (dt_s <= 0.0f) dt_s = 0.001f;
 
-    float max_step = KNEXUS_DJI_TARGET_SLEW_RPM_PER_S * dt_s;
+    float max_step = s_target_slew_rpmps * dt_s;
     float delta = s_target_rpm - s_target_used_rpm;
     if (delta > max_step) delta = max_step;
     if (delta < -max_step) delta = -max_step;
@@ -149,6 +164,48 @@ void knx_dji_motor_ctrl_update(float dt_s)
 void knx_dji_motor_ctrl_set_target(float target_rpm)
 {
     s_target_rpm = limit_abs(target_rpm, KNEXUS_DJI_MAX_TARGET_RPM);
+}
+
+knx_status_t knx_dji_motor_ctrl_set_speed_pid(float kp, float ki, float kd,
+                                              float integral_limit,
+                                              float max_current_cmd)
+{
+    if (!s_initialized || s_speed_pid == NULL ||
+        kp < 0.0f || ki < 0.0f || kd < 0.0f ||
+        integral_limit < 0.0f || max_current_cmd <= 0.0f ||
+        max_current_cmd > 16384.0f) {
+        return KNX_INVALID_ARG;
+    }
+
+    s_speed_pid->Kp = kp;
+    s_speed_pid->Ki = ki;
+    s_speed_pid->Kd = kd;
+    s_speed_pid->IntegralLimit = integral_limit;
+    s_speed_pid->MaxOut = max_current_cmd;
+    s_max_current_cmd = max_current_cmd;
+    pid_clear(s_speed_pid);
+    return KNX_OK;
+}
+
+knx_status_t knx_dji_motor_ctrl_set_current_feedforward(
+    float current_cmd, float min_target_rpm)
+{
+    if (!s_initialized || current_cmd < 0.0f ||
+        current_cmd > s_max_current_cmd || min_target_rpm < 0.0f) {
+        return KNX_INVALID_ARG;
+    }
+    s_current_feedforward_cmd = current_cmd;
+    s_current_feedforward_min_rpm = min_target_rpm;
+    return KNX_OK;
+}
+
+knx_status_t knx_dji_motor_ctrl_set_target_slew(float slew_rpmps)
+{
+    if (!s_initialized || slew_rpmps <= 0.0f) {
+        return KNX_INVALID_ARG;
+    }
+    s_target_slew_rpmps = slew_rpmps;
+    return KNX_OK;
 }
 
 void knx_dji_motor_ctrl_stop(void)
@@ -189,6 +246,7 @@ void knx_dji_motor_ctrl_snapshot(knx_dji_motor_state_t *out)
     out->enabled = s_enabled;
     out->target_rpm = s_target_rpm;
     out->target_used_rpm = s_target_used_rpm;
+    out->target_slew_rpmps = s_target_slew_rpmps;
     out->pid_output = (int16_t)dji_pid_output;
     out->tx_ok = dji_tx_count;
     out->tx_error = dji_tx_error_count;

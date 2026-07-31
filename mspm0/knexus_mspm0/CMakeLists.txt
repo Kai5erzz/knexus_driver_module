@@ -63,6 +63,9 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/modules/can_router/knx_can_router.c
     ${KNEXUS_COMMON_USER_DIR}/modules/motor/knx_motor.c
     ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl/knx_dji_motor_ctrl.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/rod_control/knx_rod_angle_ctrl.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/rod_control/knx_rod_runtime.c
+    ${KNEXUS_COMMON_USER_DIR}/modules/rod_control/knx_ball_motion_comp.c
     ${KNEXUS_COMMON_USER_DIR}/modules/drive/knx_drive.c
     ${KNEXUS_COMMON_USER_DIR}/modules/imu/knx_imu.c
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale/knx_grayscale.c
@@ -84,6 +87,8 @@ set(COMMON_MODULE_SOURCES
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_intersection_sample.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_pid_tune.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_screw_test.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_static_rod_angle.c
+    ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_line_follow_ball_center.c
     ${KNEXUS_COMMON_USER_DIR}/app/contest_2026/modes/knexus_mode_user.c
 )
 
@@ -192,6 +197,7 @@ target_include_directories(knexus_mspm0.elf PRIVATE
     ${KNEXUS_COMMON_USER_DIR}/modules/can_router
     ${KNEXUS_COMMON_USER_DIR}/modules/motor
     ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl
+    ${KNEXUS_COMMON_USER_DIR}/modules/rod_control
     ${KNEXUS_COMMON_USER_DIR}/modules/drive
     ${KNEXUS_COMMON_USER_DIR}/modules/imu
     ${KNEXUS_COMMON_USER_DIR}/modules/grayscale

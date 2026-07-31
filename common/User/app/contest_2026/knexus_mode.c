@@ -20,6 +20,10 @@ typedef struct {
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_board_test
 #elif defined(KNEXUS_MODE_SCREW_TEST)
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_screw_test
+#elif defined(KNEXUS_MODE_STATIC_ROD_ANGLE)
+#define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_static_rod_angle
+#elif defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+#define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_line_follow_ball_center
 #else
 #define KNEXUS_ACTIVE_MODE_PREFIX knexus_mode_user
 #endif

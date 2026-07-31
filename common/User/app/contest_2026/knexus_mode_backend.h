@@ -18,6 +18,8 @@ KNEXUS_DECLARE_MODE(knexus_mode_pid_tune);
 KNEXUS_DECLARE_MODE(knexus_mode_user);
 KNEXUS_DECLARE_MODE(knexus_mode_board_test);
 KNEXUS_DECLARE_MODE(knexus_mode_screw_test);
+KNEXUS_DECLARE_MODE(knexus_mode_static_rod_angle);
+KNEXUS_DECLARE_MODE(knexus_mode_line_follow_ball_center);
 
 #undef KNEXUS_DECLARE_MODE
 

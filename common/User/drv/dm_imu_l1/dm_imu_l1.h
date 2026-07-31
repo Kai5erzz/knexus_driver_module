@@ -72,6 +72,8 @@ knx_status_t DM_IMU_L1_RequestData(dm_imu_l1_data_type_t reg);
 void DM_IMU_L1_UpdateData(uint32_t std_id, const uint8_t *data, uint8_t len);
 void DM_IMU_L1_Snapshot(dm_imu_l1_data_t *out);
 uint8_t DM_IMU_L1_IsDataReady(void);
+uint8_t DM_IMU_L1_IsTiltReady(void);
+uint8_t DM_IMU_L1_IsTiltCorrectionValid(void);
 void DM_IMU_L1_DebugOcto(Octolinker_Instance_t *octo, uint16_t base_id);
 
 #endif /* DM_IMU_L1_H */

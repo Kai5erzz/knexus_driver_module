@@ -105,7 +105,9 @@ static void control_task(void *arg)
         TickType_t started = xTaskGetTickCount();
         knx26_diag_control_heartbeat++;
         knx26_control_update((float)KNX26_CONTROL_PERIOD_MS * 0.001f);
-#if defined(KNEXUS_MODE_LINE_FOLLOW) && KNEXUS_H_TASK_ENABLE
+#if (defined(KNEXUS_MODE_LINE_FOLLOW) || \
+     defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)) && \
+    KNEXUS_H_TASK_ENABLE
         knx26_h_ball_control_update();
 #endif
         delay_periodic(&wake, pdMS_TO_TICKS(KNX26_CONTROL_PERIOD_MS), started,

@@ -17,7 +17,9 @@
 #include "octolinker.h"
 #include "track_sensor.h"
 #include "bmi088.h"
-#if defined(KNEXUS_MODE_BOARD_TEST) || defined(KNEXUS_MODE_SCREW_TEST)
+#if defined(KNEXUS_MODE_BOARD_TEST) || defined(KNEXUS_MODE_SCREW_TEST) || \
+    defined(KNEXUS_MODE_STATIC_ROD_ANGLE) || \
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
 #include "knx_dji_motor_ctrl.h"
 #endif
 #if defined(KNX_PLATFORM_MSPM0)
@@ -182,20 +184,32 @@ void knx26_fast_update(void)
     knx_port_watchdog_refresh();
     knx_beep_update();
     return;
-#elif defined(KNEXUS_MODE_SCREW_TEST)
-    /* 丝杆测试只驱动FDCAN2上的C620。按键状态机在10 ms任务中给目标，
-     * 1 kHz任务负责速度斜坡、PID和CAN电流帧；不启动底盘轮电机。 */
+#elif defined(KNEXUS_MODE_SCREW_TEST) || \
+      defined(KNEXUS_MODE_STATIC_ROD_ANGLE)
+    /* 丝杆/杆角模式只驱动FDCAN2上的C620。10 ms任务给目标，1 kHz任务
+     * 负责速度斜坡、PID和CAN电流帧；底盘左右轮始终不参与。 */
     knx_dji_motor_ctrl_update((float)KNX26_FAST_PERIOD_MS * 0.001f);
     knx_port_watchdog_refresh();
     knx_beep_update();
     return;
 #else
     (void)knx_safety_update();
+#if defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER) && \
+    KNEXUS_BALL_MANUAL_COMP_TEST_ENABLE
+    /* Manual compensation validation must never energize the chassis even
+     * if a stale host command arrives between two 10 ms app updates. */
+    (void)knx_chassis_disable();
+#else
     if (knx_safety_get_level() == KNX_SAFETY_LEVEL_FAULT) {
         (void)knx_chassis_stop();
     } else {
         (void)knx_chassis_update_fast();
     }
+#endif
+#if defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+    /* The chassis and C620 have independent 1 kHz inner loops in this mode. */
+    knx_dji_motor_ctrl_update((float)KNX26_FAST_PERIOD_MS * 0.001f);
+#endif
     knx_beep_update();
 #endif
 }

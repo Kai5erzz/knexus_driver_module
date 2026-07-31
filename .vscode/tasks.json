@@ -43,7 +43,7 @@
         "-s",
         "D:/application_restore/openocd/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts",
         "-f",
-        "D:/User/Project/CLION+CUBEMX/cfj/rm_dap_wireless.cfg",
+        "D:/User/Project/knexus_driver_module/.vscode/daplink_wireless_stm32.cfg",
         "-c",
         "program D:/User/Project/knexus_driver_module/build/stm32-debug/stm32/knexus_st/knexus_st.elf verify reset exit"
       ],

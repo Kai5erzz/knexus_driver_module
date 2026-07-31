@@ -15,8 +15,10 @@
 
 /*
  * 丝杆测试模式（STM32专用硬件组合）
- *   KEY0按住：M3508 +3000 rpm；松开立即发送零电流并失能。
- *   KEY1按住：M3508 -3000 rpm；松开立即发送零电流并失能。
+ *   KEY0按住：M3508 +1000 rpm，丝杆下沉，roll增大。
+ *   KEY1按住：M3508 -1000 rpm，丝杆上升，roll减小。
+ *   roll >= +7 deg：禁止继续下沉，仍允许上升。
+ *   roll <= -12 deg：禁止继续上升，仍允许下沉。
  *   两键同时按：停止，避免方向指令冲突。
  *   FDCAN2：C620/M3508；FDCAN1：DM-IMU-L1。
  */
@@ -30,6 +32,13 @@ static knx_status_t s_dji_init_status;
 static knx_status_t s_dm_sub_active_status;
 static knx_status_t s_dm_sub_reply_status;
 static knx_status_t s_dm_init_status;
+static float s_tilt_roll_deg;
+static uint8_t s_tilt_valid;
+static uint8_t s_upper_limit_active;
+static uint8_t s_lower_limit_active;
+static int8_t s_requested_direction;
+static int8_t s_blocked_direction;
+static uint32_t s_limit_block_count;
 
 #if defined(KNX_PLATFORM_STM32)
 static void screw_dm_rx_handler(uint32_t std_id, const uint8_t *data,
@@ -102,6 +111,13 @@ void knexus_mode_screw_test_init(void)
     s_dm_sub_active_status = KNX_NOT_READY;
     s_dm_sub_reply_status = KNX_NOT_READY;
     s_dm_init_status = KNX_NOT_READY;
+    s_tilt_roll_deg = 0.0f;
+    s_tilt_valid = 0U;
+    s_upper_limit_active = 0U;
+    s_lower_limit_active = 0U;
+    s_requested_direction = 0;
+    s_blocked_direction = 0;
+    s_limit_block_count = 0U;
 
 #if defined(KNX_PLATFORM_STM32)
     s_platform_supported = 1U;
@@ -125,11 +141,56 @@ void knexus_mode_screw_test_update(const struct knx26_context *raw_context)
     bool key0 = knx_key_is_pressed(KNX_KEY_0);
     bool key1 = knx_key_is_pressed(KNX_KEY_1);
     int8_t requested_direction = 0;
-    if (key0 && !key1) requested_direction = 1;
-    if (key1 && !key0) requested_direction = -1;
+    if (key0 && !key1) {
+        requested_direction = KNEXUS_SCREW_MOTOR_DOWN_DIRECTION;
+    }
+    if (key1 && !key0) {
+        requested_direction = KNEXUS_SCREW_MOTOR_UP_DIRECTION;
+    }
+    s_requested_direction = requested_direction;
+
+#if defined(KNX_PLATFORM_STM32)
+    dm_imu_l1_data_t imu;
+    DM_IMU_L1_Snapshot(&imu);
+    uint32_t tilt_age_ms = context->now_ms - imu.timestamp;
+    s_tilt_roll_deg = imu.roll;
+    s_tilt_valid =
+        (DM_IMU_L1_IsDataReady() != 0U &&
+         DM_IMU_L1_IsTiltReady() != 0U &&
+         tilt_age_ms <= KNEXUS_SCREW_TILT_MAX_AGE_MS)
+            ? 1U
+            : 0U;
+    s_upper_limit_active =
+        (s_tilt_valid &&
+         s_tilt_roll_deg <= KNEXUS_SCREW_TILT_UPPER_LIMIT_DEG)
+            ? 1U
+            : 0U;
+    s_lower_limit_active =
+        (s_tilt_valid &&
+         s_tilt_roll_deg >= KNEXUS_SCREW_TILT_LOWER_LIMIT_DEG)
+            ? 1U
+            : 0U;
+#else
+    s_tilt_valid = 0U;
+    s_upper_limit_active = 0U;
+    s_lower_limit_active = 0U;
+#endif
+
+    int8_t blocked_direction = 0;
+    if ((requested_direction == KNEXUS_SCREW_MOTOR_UP_DIRECTION &&
+         s_upper_limit_active) ||
+        (requested_direction == KNEXUS_SCREW_MOTOR_DOWN_DIRECTION &&
+         s_lower_limit_active)) {
+        blocked_direction = requested_direction;
+    }
+    if (blocked_direction != 0 && s_blocked_direction == 0) {
+        s_limit_block_count++;
+    }
+    s_blocked_direction = blocked_direction;
 
     if (!s_platform_supported || s_dji_init_status != KNX_OK ||
-        requested_direction == 0) {
+        !s_tilt_valid || requested_direction == 0 ||
+        blocked_direction != 0) {
         screw_stop();
     } else {
         if (!s_motor_enabled) {
@@ -184,7 +245,15 @@ void knexus_mode_screw_test_debug_control_octo(
     (void)Octolinker_SendF32(octo, id + 8U, imu.yaw);
     (void)Octolinker_SendF32(octo, id + 9U, imu.yaw_total);
     (void)Octolinker_SendF32Array(octo, id + 10U, imu.gyro, 3U);
+    (void)Octolinker_SendF32(octo, id + 13U, imu.roll_total);
+    (void)Octolinker_SendF32(octo, id + 14U, imu.pitch_total);
 #endif
+    (void)Octolinker_SendI32(octo, id + 15U,
+                             (int32_t)s_requested_direction);
+    /* Total motor angle makes the screw/rod transmission identifiable from
+     * one forward and one reverse pulse, without integrating sampled RPM. */
+    (void)Octolinker_SendF32(octo, id + 11U, dji.angle_deg);
+    (void)Octolinker_SendU8(octo, id + 12U, dji.temperature_c);
 }
 
 void knexus_mode_screw_test_debug_octo(Octolinker_Instance_t *octo,
@@ -221,4 +290,17 @@ void knexus_mode_screw_test_debug_octo(Octolinker_Instance_t *octo,
 #if defined(KNX_PLATFORM_STM32)
     DM_IMU_L1_DebugOcto(octo, (uint16_t)(id + 32U));
 #endif
+    (void)Octolinker_SendU8(octo, id + 54U, s_tilt_valid);
+    (void)Octolinker_SendI32(octo, id + 55U,
+                             (int32_t)s_blocked_direction);
+    (void)Octolinker_SendU32(octo, id + 56U,
+                             s_limit_block_count);
+    (void)Octolinker_SendU8(octo, id + 57U,
+                            s_upper_limit_active);
+    (void)Octolinker_SendU8(octo, id + 58U,
+                            s_lower_limit_active);
+    (void)Octolinker_SendF32(octo, id + 59U,
+                             KNEXUS_SCREW_TILT_UPPER_LIMIT_DEG);
+    (void)Octolinker_SendF32(octo, id + 60U,
+                             KNEXUS_SCREW_TILT_LOWER_LIMIT_DEG);
 }

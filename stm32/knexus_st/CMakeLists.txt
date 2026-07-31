@@ -93,6 +93,7 @@ include_directories(
     # modules (common)
     ${KNEXUS_COMMON_USER_DIR}/modules/motor
     ${KNEXUS_COMMON_USER_DIR}/modules/dji_motor_ctrl
+    ${KNEXUS_COMMON_USER_DIR}/modules/rod_control
     ${KNEXUS_COMMON_USER_DIR}/modules/imu
     ${KNEXUS_COMMON_USER_DIR}/modules/ctrl
     ${KNEXUS_COMMON_USER_DIR}/modules/telemetry

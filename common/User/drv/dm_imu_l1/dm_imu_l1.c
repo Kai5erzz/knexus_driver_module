@@ -1,8 +1,10 @@
 #include "dm_imu_l1.h"
+#include "knexus_config.h"
 #include "knx_health.h"
 #include "knx_time.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -32,12 +34,30 @@ dm_imu_l1_data_t dm_imu_l1_data;
 
 static knx_can_t *s_can;
 static uint16_t s_can_id = DM_IMU_L1_DEFAULT_CAN_ID;
+static float s_accel_roll_deg;
+static float s_accel_pitch_deg;
+static float s_accel_norm_mps2;
+static float s_fused_roll_deg;
+static float s_fused_pitch_deg;
+static float s_vendor_roll_deg;
+static float s_vendor_pitch_deg;
+static uint32_t s_last_accel_tilt_ms;
+static uint32_t s_last_gyro_ms;
+static uint8_t s_tilt_filter_ready;
+static uint8_t s_accel_tilt_valid;
 
 static float dm_imu_l1_uint_to_float(uint32_t value, float min, float max, uint8_t bits)
 {
     float span = max - min;
     float scale = (float)((1UL << bits) - 1UL);
     return ((float)value * span / scale) + min;
+}
+
+static float dm_imu_l1_wrap_degrees(float angle_deg)
+{
+    while (angle_deg >= 180.0f) angle_deg -= 360.0f;
+    while (angle_deg < -180.0f) angle_deg += 360.0f;
+    return angle_deg;
 }
 
 static void dm_imu_l1_rx_dispatch(uint32_t std_id,
@@ -54,6 +74,17 @@ static void dm_imu_l1_reset_data(void)
     memset(&dm_imu_l1_data, 0, sizeof(dm_imu_l1_data));
     dm_imu_l1_data.accel_scale = 1.0f;
     dm_imu_l1_data.g_norm = 9.81f;
+    s_accel_roll_deg = 0.0f;
+    s_accel_pitch_deg = 0.0f;
+    s_accel_norm_mps2 = 0.0f;
+    s_fused_roll_deg = 0.0f;
+    s_fused_pitch_deg = 0.0f;
+    s_vendor_roll_deg = 0.0f;
+    s_vendor_pitch_deg = 0.0f;
+    s_last_accel_tilt_ms = 0U;
+    s_last_gyro_ms = 0U;
+    s_tilt_filter_ready = 0U;
+    s_accel_tilt_valid = 0U;
 }
 
 static knx_status_t dm_imu_l1_send_write(uint8_t reg, const uint8_t *data, uint8_t len)
@@ -101,6 +132,38 @@ static void dm_imu_l1_parse_accel(const uint8_t *data)
                             * dm_imu_l1_data.accel_scale;
     dm_imu_l1_data.temperature = (float)data[1];
     dm_imu_l1_data.data_flags |= DM_IMU_L1_FLAG_ACCEL;
+
+#if KNEXUS_DM_IMU_TILT_FUSION_ENABLE
+    uint32_t now = knx_millis();
+    if (!s_tilt_filter_ready ||
+        (now - s_last_accel_tilt_ms) >=
+            KNEXUS_DM_IMU_TILT_ACCEL_PERIOD_MS) {
+        float ax = dm_imu_l1_data.accel[0];
+        float ay = dm_imu_l1_data.accel[1];
+        float az = dm_imu_l1_data.accel[2];
+        s_accel_norm_mps2 = sqrtf(ax * ax + ay * ay + az * az);
+        s_accel_tilt_valid =
+            (fabsf(s_accel_norm_mps2 -
+                   KNEXUS_DM_IMU_TILT_ACCEL_NORM_MPS2) <=
+             KNEXUS_DM_IMU_TILT_ACCEL_TOLERANCE_MPS2)
+                ? 1U
+                : 0U;
+        if (s_accel_tilt_valid) {
+            /* Sensor frame is rotated 180 deg around X by the upside-down
+             * installation: x'=x, y'=-y, z'=-z. */
+            s_accel_roll_deg = atan2f(-ay, -az) * 57.2957795f;
+            s_accel_pitch_deg =
+                atan2f(-ax, sqrtf(ay * ay + az * az)) * 57.2957795f;
+            if (!s_tilt_filter_ready) {
+                s_fused_roll_deg = s_accel_roll_deg;
+                s_fused_pitch_deg = s_accel_pitch_deg;
+                s_last_gyro_ms = now;
+                s_tilt_filter_ready = 1U;
+            }
+        }
+        s_last_accel_tilt_ms = now;
+    }
+#endif
 }
 
 static void dm_imu_l1_parse_gyro(const uint8_t *data)
@@ -116,6 +179,38 @@ static void dm_imu_l1_parse_gyro(const uint8_t *data)
     dm_imu_l1_data.gyro[2] = dm_imu_l1_uint_to_float(raw_z, GYRO_CAN_MIN, GYRO_CAN_MAX, 16U)
                            - dm_imu_l1_data.gyro_offset[2];
     dm_imu_l1_data.data_flags |= DM_IMU_L1_FLAG_GYRO;
+
+#if KNEXUS_DM_IMU_TILT_FUSION_ENABLE
+    uint32_t now = knx_millis();
+    if (s_tilt_filter_ready) {
+        uint32_t elapsed_ms = now - s_last_gyro_ms;
+        if (elapsed_ms > 0U) {
+            if (elapsed_ms > 20U) elapsed_ms = 1U;
+            float dt_s = (float)elapsed_ms * 0.001f;
+            float roll = dm_imu_l1_wrap_degrees(
+                s_fused_roll_deg +
+                KNEXUS_DM_IMU_ROLL_GYRO_SIGN *
+                    dm_imu_l1_data.gyro[0] * 57.2957795f * dt_s);
+            float pitch = dm_imu_l1_wrap_degrees(
+                s_fused_pitch_deg +
+                KNEXUS_DM_IMU_PITCH_GYRO_SIGN *
+                    dm_imu_l1_data.gyro[1] * 57.2957795f * dt_s);
+            if (s_accel_tilt_valid) {
+                float correction =
+                    dt_s / (KNEXUS_DM_IMU_TILT_CORRECTION_TAU_S + dt_s);
+                roll = dm_imu_l1_wrap_degrees(
+                    roll + correction * dm_imu_l1_wrap_degrees(
+                                           s_accel_roll_deg - roll));
+                pitch = dm_imu_l1_wrap_degrees(
+                    pitch + correction * dm_imu_l1_wrap_degrees(
+                                            s_accel_pitch_deg - pitch));
+            }
+            s_fused_roll_deg = roll;
+            s_fused_pitch_deg = pitch;
+        }
+    }
+    s_last_gyro_ms = now;
+#endif
 }
 
 static void dm_imu_l1_parse_euler(const uint8_t *data)
@@ -124,9 +219,27 @@ static void dm_imu_l1_parse_euler(const uint8_t *data)
     uint16_t raw_yaw = ((uint16_t)data[5] << 8) | data[4];
     uint16_t raw_roll = ((uint16_t)data[7] << 8) | data[6];
 
-    float pitch = dm_imu_l1_uint_to_float(raw_pitch, PITCH_CAN_MIN, PITCH_CAN_MAX, 16U);
+    float vendor_pitch = dm_imu_l1_uint_to_float(
+        raw_pitch, PITCH_CAN_MIN, PITCH_CAN_MAX, 16U);
     float yaw = dm_imu_l1_uint_to_float(raw_yaw, YAW_CAN_MIN, YAW_CAN_MAX, 16U);
-    float roll = dm_imu_l1_uint_to_float(raw_roll, ROLL_CAN_MIN, ROLL_CAN_MAX, 16U);
+    float raw_roll_deg = dm_imu_l1_uint_to_float(
+        raw_roll, ROLL_CAN_MIN, ROLL_CAN_MAX, 16U);
+    /* The rod IMU is mounted upside down: raw +/-180 deg is the mechanical
+     * horizontal position. Apply the mounting transform before both the
+     * public snapshot and continuous-angle accumulation, so control and
+     * OctoLink (including var932) always observe the same corrected roll. */
+    float vendor_roll = dm_imu_l1_wrap_degrees(
+        (raw_roll_deg - KNEXUS_DM_IMU_ROLL_OFFSET_DEG) *
+        KNEXUS_DM_IMU_ROLL_SIGN);
+    s_vendor_roll_deg = vendor_roll;
+    s_vendor_pitch_deg = vendor_pitch;
+#if KNEXUS_DM_IMU_TILT_FUSION_ENABLE
+    float roll = s_tilt_filter_ready ? s_fused_roll_deg : vendor_roll;
+    float pitch = s_tilt_filter_ready ? s_fused_pitch_deg : vendor_pitch;
+#else
+    float roll = vendor_roll;
+    float pitch = vendor_pitch;
+#endif
 
     float dyaw = yaw - dm_imu_l1_data.yaw;
     if (dyaw > 180.0f) {
@@ -394,6 +507,16 @@ uint8_t DM_IMU_L1_IsDataReady(void)
     return (dm_imu_l1_data.data_flags & DM_IMU_L1_FLAG_ALL_READY) == DM_IMU_L1_FLAG_ALL_READY;
 }
 
+uint8_t DM_IMU_L1_IsTiltReady(void)
+{
+    return s_tilt_filter_ready;
+}
+
+uint8_t DM_IMU_L1_IsTiltCorrectionValid(void)
+{
+    return s_accel_tilt_valid;
+}
+
 void DM_IMU_L1_DebugOcto(Octolinker_Instance_t *octo, uint16_t base_id)
 {
     if (octo == NULL) {
@@ -415,4 +538,11 @@ void DM_IMU_L1_DebugOcto(Octolinker_Instance_t *octo, uint16_t base_id)
     (void)Octolinker_SendU8(octo, base_id + 12U, dm_imu_l1_data.last_reg);
     (void)Octolinker_SendU8(octo, base_id + 13U, dm_imu_l1_data.data_flags);
     (void)Octolinker_SendI32(octo, base_id + 14U, (int32_t)dm_imu_l1_data.last_status);
+    (void)Octolinker_SendF32(octo, base_id + 15U, s_accel_roll_deg);
+    (void)Octolinker_SendF32(octo, base_id + 16U, s_accel_pitch_deg);
+    (void)Octolinker_SendF32(octo, base_id + 17U, s_accel_norm_mps2);
+    (void)Octolinker_SendU8(octo, base_id + 18U, s_tilt_filter_ready);
+    (void)Octolinker_SendU8(octo, base_id + 19U, s_accel_tilt_valid);
+    (void)Octolinker_SendF32(octo, base_id + 20U, s_vendor_roll_deg);
+    (void)Octolinker_SendF32(octo, base_id + 21U, s_vendor_pitch_deg);
 }

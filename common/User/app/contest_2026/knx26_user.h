@@ -57,7 +57,9 @@ void knx26_user_debug_octo(Octolinker_Instance_t *octo, uint16_t base_id);
 void knx26_user_debug_control_octo(Octolinker_Instance_t *octo,
                                    uint16_t base_id);
 
-#if defined(KNEXUS_MODE_LINE_FOLLOW) && KNEXUS_H_TASK_ENABLE
+#if (defined(KNEXUS_MODE_LINE_FOLLOW) || \
+     defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)) && \
+    KNEXUS_H_TASK_ENABLE
 void knx26_h_ball_control_update(void);
 #endif
 

@@ -16,19 +16,23 @@
 
 /* ======================== 1. 工作模式选择 ======================== */
 
-// #define KNEXUS_MODE_LINE_FOLLOW          /* 巡线任务模式：KEY0 校准，KEY1 启停 */
+// #define KNEXUS_MODE_LINE_FOLLOW             /* 巡线任务模式：KEY0 校准，KEY1 启停 */
 // #define KNEXUS_MODE_INTERSECTION_SAMPLE  /* 路口采样模式：采集 64x8 灰度矩阵 */
 // #define KNEXUS_MODE_PID_TUNE             /* 电机/底盘 PID 基础调参模式 */
 // #define KNEXUS_MODE_USER                 /* 用户自定义模式，见 knexus_mode_user.c */
 // #define KNEXUS_MODE_BOARD_TEST           /* 全板硬件验收：两种 MCU 共用 */
-#define KNEXUS_MODE_SCREW_TEST              /* 丝杆测试：KEY0按住正转，KEY1按住反转 */
+// #define KNEXUS_MODE_SCREW_TEST           /* 丝杆测试：KEY0按住正转，KEY1按住反转 */
+// #define KNEXUS_MODE_STATIC_ROD_ANGLE       /* 底盘静止、杆角闭环：当前目标 roll=0° */
+#define KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER /* 循迹归中：纵向运动补偿并预留视觉闭环 */
 
 #if (defined(KNEXUS_MODE_LINE_FOLLOW) + \
      defined(KNEXUS_MODE_INTERSECTION_SAMPLE) + \
      defined(KNEXUS_MODE_PID_TUNE) + \
      defined(KNEXUS_MODE_USER) + \
      defined(KNEXUS_MODE_BOARD_TEST) + \
-     defined(KNEXUS_MODE_SCREW_TEST)) != 1
+     defined(KNEXUS_MODE_SCREW_TEST) + \
+     defined(KNEXUS_MODE_STATIC_ROD_ANGLE) + \
+     defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)) != 1
 #error "KNexus: 必须且只能启用一个 KNEXUS_MODE_xxx 工作模式"
 #endif
 
@@ -183,9 +187,9 @@
 #define KNEXUS_LINE_BASE_SPEED_MPS_DEFAULT     0.30f
 
 /* Kp=吸线力度；Ki=消除长期偏线；Kd=抑制快速摆动。 */
-#define KNEXUS_LINE_KP_DEFAULT                 0.75f
-#define KNEXUS_LINE_KI_DEFAULT                 0.15f
-#define KNEXUS_LINE_KD_DEFAULT                 0.0015f
+#define KNEXUS_LINE_KP_DEFAULT                 0.35f
+#define KNEXUS_LINE_KI_DEFAULT                 0.03f
+#define KNEXUS_LINE_KD_DEFAULT                 0.018f
 #define KNEXUS_LINE_MAX_ANGULAR_RADPS_DEFAULT  4.00f
 #define KNEXUS_LINE_MIN_ANGULAR_RADPS_DEFAULT  0.35f /* 克服低速转向死区 */
 #define KNEXUS_LINE_INTEGRAL_LIMIT_DEFAULT     0.80f
@@ -193,7 +197,26 @@
 #define KNEXUS_LINE_RECOVERY_RADPS_DEFAULT     2.00f
 #define KNEXUS_LINE_ERROR_FILTER_ALPHA         0.25f
 #define KNEXUS_LINE_D_FILTER_ALPHA             0.20f
-#define KNEXUS_LINE_ANGULAR_SMOOTH_ALPHA       0.65f
+/*
+ * 转向滤波只承担命令整形，不再用很慢的释放系数压摆；实测慢释放会增加
+ * 闭环相位滞后，把约 2.7 Hz 的摆动变成幅度更大的约 2.2 Hz 摆动。
+ */
+#define KNEXUS_LINE_ANGULAR_ATTACK_ALPHA       0.65f
+#define KNEXUS_LINE_ANGULAR_RELEASE_ALPHA      0.65f
+#define KNEXUS_LINE_ANGULAR_REVERSE_ALPHA      0.65f
+#define KNEXUS_LINE_ANGULAR_SLEW_RADPS2       10.00f /* 限制单次转向尖峰，不降低稳态转弯力度 */
+/*
+ * H题赛道固定，三圈实测弯道里程位置重复性优于约2.5cm。弯道前馈因此由
+ * 里程表生成，不再由正在振荡的灰度误差/curve metric生成。
+ */
+#define KNEXUS_LINE_CURVE_FEEDFORWARD_RADPS    0.75f
+#define KNEXUS_H_CURVE_SPEED_SCALE             0.82f
+#define KNEXUS_H_CURVE_STEERING_SIGN          -1.00f
+#define KNEXUS_H_CURVE_RAMP_M                  0.18f
+#define KNEXUS_H_CURVE1_START_M                0.03f
+#define KNEXUS_H_CURVE1_END_M                  1.77f
+#define KNEXUS_H_CURVE2_START_M                2.93f
+#define KNEXUS_H_CURVE2_END_M                  4.68f
 #define KNEXUS_LINE_CURVE_SLOWDOWN_GAIN        0.12f
 #define KNEXUS_LINE_MIN_SPEED_SCALE            0.55f
 #define KNEXUS_LINE_ERROR_ABS_LIMIT             3.50f
@@ -220,10 +243,10 @@
  * S形纵向加减速器。加速较小以保护滚球稳定；减速稍快以保证入弯及时，
  * JERK 限制用于消除速度命令的一阶突变。RESPONSE 越大，速度变化越舒缓。
  */
-#define KNEXUS_LINE_ACCEL_LIMIT_MPS2              0.80f
-#define KNEXUS_LINE_DECEL_LIMIT_MPS2              1.20f
-#define KNEXUS_LINE_JERK_LIMIT_MPS3               6.00f
-#define KNEXUS_LINE_SPEED_RESPONSE_S              0.22f
+#define KNEXUS_LINE_ACCEL_LIMIT_MPS2              0.65f
+#define KNEXUS_LINE_DECEL_LIMIT_MPS2              0.75f
+#define KNEXUS_LINE_JERK_LIMIT_MPS3               3.50f
+#define KNEXUS_LINE_SPEED_RESPONSE_S              0.26f
 #define KNEXUS_LINE_MEASURED_ACCEL_FILTER_ALPHA   0.15f
 
 /*
@@ -249,7 +272,7 @@
 
 /* ======================== 6.1 H题环形赛道任务 ======================== */
 
-/* 仅在 KNEXUS_MODE_LINE_FOLLOW 下生效；0可退回普通无限巡线。 */
+/* 在普通巡线与循迹归中模式下生效；0可退回普通无限巡线。 */
 #define KNEXUS_H_TASK_ENABLE                         1U
 
 /* 赛道理论周长约 6.14m。速度需结合载球后的稳定性逐步提高。 */
@@ -288,7 +311,11 @@
 
 /* 行驶项目默认把球保持在中心。要求6可在线修改到任意指定位置。 */
 #define KNEXUS_H_BALL_TARGET_CM_DEFAULT             0.0f
+#if defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+#define KNEXUS_H_REQUIRE_BALL_READY                   1U
+#else
 #define KNEXUS_H_REQUIRE_BALL_READY                   0U
+#endif
 #define KNEXUS_H_BALL_CONTROL_PERIOD_MS              10U
 #define KNEXUS_H_BALL_STATIC_POSITIVE_CM             5.0f
 #define KNEXUS_H_BALL_STATIC_NEGATIVE_CM            -5.0f
@@ -367,10 +394,149 @@
 /* ======================== 9.1 丝杆与外置IMU测试 ======================== */
 
 /* STM32: M3508/C620=FDCAN2，DM-IMU-L1=FDCAN1；MSPM0只有一路CAN，不执行该组合测试。 */
-#define KNEXUS_SCREW_TEST_SPEED_RPM                  3000.0f
+#define KNEXUS_SCREW_TEST_SPEED_RPM                  1000.0f
 #define KNEXUS_SCREW_TEST_DM_CAN_BUS_INDEX              0U
 #define KNEXUS_SCREW_TEST_DM_INTERVAL_MS                 1U
 #define KNEXUS_SCREW_TEST_OCTO_BASE_ID                 900U
+/*
+ * 丝杆/倾角实测极性：
+ *   +rpm（KEY0） -> 丝杆下沉 -> roll增大；
+ *   -rpm（KEY1） -> 丝杆上升 -> roll减小。
+ * 软限位只屏蔽继续撞向限位的方向，始终允许反向离开限位。
+ */
+#define KNEXUS_SCREW_MOTOR_DOWN_DIRECTION                 1
+#define KNEXUS_SCREW_MOTOR_UP_DIRECTION                  -1
+#define KNEXUS_SCREW_TILT_LOWER_LIMIT_DEG               7.00f
+#define KNEXUS_SCREW_TILT_UPPER_LIMIT_DEG             -12.00f
+#define KNEXUS_SCREW_TILT_MAX_AGE_MS                     50U
+/* DM-IMU-L1倒置安装：原始roll约±180°对应杆水平0°。 */
+#define KNEXUS_DM_IMU_ROLL_OFFSET_DEG                  180.0f
+#define KNEXUS_DM_IMU_ROLL_SIGN                         1.0f
+/*
+ * DM-IMU-L1内部姿态融合在倒置附近会产生约15s周期的roll/pitch假振荡。
+ * 改用MCU侧一维互补融合：陀螺积分保留快速响应，重力角负责长期纠偏。
+ */
+#define KNEXUS_DM_IMU_TILT_FUSION_ENABLE                  1U
+#define KNEXUS_DM_IMU_TILT_CORRECTION_TAU_S             0.50f
+#define KNEXUS_DM_IMU_TILT_ACCEL_PERIOD_MS                 5U
+#define KNEXUS_DM_IMU_TILT_ACCEL_NORM_MPS2               9.80665f
+#define KNEXUS_DM_IMU_TILT_ACCEL_TOLERANCE_MPS2          2.00f
+#define KNEXUS_DM_IMU_ROLL_GYRO_SIGN                     1.00f
+#define KNEXUS_DM_IMU_PITCH_GYRO_SIGN                   -1.00f
+
+/* ======================== 9.2 底盘静止杆角闭环 ======================== */
+
+/*
+ * 当前阶段不接上下位机，目标角固定为 0°。这些 DEFAULT 值会复制到同名
+ * 普通变量，可在调试器中在线修改后观察 OctoLink 曲线。
+ *
+ * 已标定机械极性：+rpm -> 丝杆下沉 -> roll 增大。因此控制误差采用
+ * target-roll，KNEXUS_ROD_MOTOR_SIGN 保持 +1；不要再额外取反。
+ */
+#define KNEXUS_ROD_TARGET_DEG_DEFAULT                    0.00f
+#define KNEXUS_ROD_ANGLE_KP_DEFAULT                     70.00f /* rpm/deg */
+#define KNEXUS_ROD_ANGLE_KI_DEFAULT                      2.00f /* rpm/(deg*s) */
+#define KNEXUS_ROD_ANGLE_KD_DEFAULT                     16.00f /* rpm/(deg/s) */
+#define KNEXUS_ROD_INTEGRAL_MAX_RPM_DEFAULT             30.00f
+#define KNEXUS_ROD_INTEGRAL_ZONE_DEG_DEFAULT             3.00f
+#define KNEXUS_ROD_INTEGRAL_RATE_ZONE_DPS_DEFAULT        4.00f
+#define KNEXUS_ROD_MAX_RPM_DEFAULT                     500.00f
+/*
+ * 该斜率主要限制杆角外环命令，不是底盘的舒适性加速度。实测 800 rpm/s
+ * 会让 +300 到 -300 rpm 的反向制动滞后约 0.75 s，明显放大杆角过冲。
+ */
+#define KNEXUS_ROD_RPM_SLEW_RPMPS_DEFAULT             8000.00f
+#define KNEXUS_ROD_DEADBAND_DEG_DEFAULT                  0.30f
+#define KNEXUS_ROD_RATE_DEADBAND_DPS_DEFAULT             1.00f
+#define KNEXUS_ROD_MOTOR_SIGN                            1.00f
+#define KNEXUS_ROD_OCTO_BASE_ID                         900U
+/*
+ * 0=静止杆角闭环不做角度软限位，让D项在越界回中时仍可反向制动；
+ * 1=沿用 -12°/+7° 单向软限位。丝杆手动测试始终保留原有限位。
+ */
+#define KNEXUS_ROD_SOFT_LIMIT_ENABLE                       0U
+
+/*
+ * 杆角模式专用 M3508 速度内环。C620 电流指令满量程为 16384；6000 约为
+ * 37% 满量程。原通用 Kp=15、Ki=0.001 在丝杆负载下长期零速，无法执行
+ * 杆角环给出的目标转速，因此只在本模式下换用以下参数。
+ */
+#define KNEXUS_ROD_DJI_SPEED_KP                          35.00f
+#define KNEXUS_ROD_DJI_SPEED_KI                          10.00f
+#define KNEXUS_ROD_DJI_SPEED_KD                           0.00f
+#define KNEXUS_ROD_DJI_SPEED_I_LIMIT                   2000.00f
+#define KNEXUS_ROD_DJI_MAX_CURRENT_CMD                 6000.00f
+#define KNEXUS_ROD_DJI_CURRENT_FF_CMD                  1200.00f
+#define KNEXUS_ROD_DJI_CURRENT_FF_MIN_RPM                 5.00f
+
+/* ======================== 9.3 循迹归中与运动补偿 ======================== */
+
+/*
+ * 管道沿车体前后中轴线安装。DM-IMU-L1只用于测量杆角，不再使用它的加速度计
+ * 推算底盘加速度，否则丝杆自身运动会被重新反馈到目标角并形成自激振荡。
+ * 2026-07-31手推“先前进、再后退”采样确认：底板BMI088的车头方向为-Y。
+ * 手推测试时编码器不更新，因此直接使用BMI088；实际发车且编码器有效时再融合。
+ */
+#define KNEXUS_BALL_ACCEL_AXIS_DEFAULT                    1
+#define KNEXUS_BALL_ACCEL_AXIS_SIGN_DEFAULT           -1.0f
+#define KNEXUS_BALL_ROLL_GRAVITY_SIGN_DEFAULT           1.0f
+#define KNEXUS_BALL_COMPENSATION_ENABLE_DEFAULT         1.0f
+/* 1=当前人工推动小车验证补偿：KEY0解锁、KEY1停止，底盘电机始终失能。 */
+#define KNEXUS_BALL_MANUAL_COMP_TEST_ENABLE                0U
+
+/* 底盘静止且杆角速度接近0时对三个加速度轴同时取均值；100点对应约1秒。 */
+#define KNEXUS_BALL_BIAS_SAMPLES                         100U
+#define KNEXUS_BALL_ACCEL_LPF_HZ                         3.0f
+#define KNEXUS_BALL_CHASSIS_IMU_AUTO_MAP_ENABLE            0U
+#define KNEXUS_BALL_CHASSIS_IMU_MAP_MIN_ACCEL_MPS2       0.20f
+#define KNEXUS_BALL_CHASSIS_IMU_MAP_SAMPLES                80U
+#define KNEXUS_BALL_CHASSIS_IMU_MAP_MIN_CORRELATION       0.60f
+/* 编码器有效时BMI088占80%；手推测试中编码器无效，自动使用100%BMI088。 */
+#define KNEXUS_BALL_CHASSIS_IMU_BLEND_WEIGHT              0.80f
+/* 巡线时以已经限加速度/限加加速度的速度规划为主，传感器只校正模型误差。 */
+#define KNEXUS_BALL_COMMAND_ACCEL_WEIGHT                   0.85f
+#define KNEXUS_BALL_COMMAND_MOTION_ACCEL_MPS2              0.03f
+/*
+ * 静止锁使用迟滞：BMI088纵向加速度连续30ms超过0.25m/s²立即解锁；
+ * 回落到0.10m/s²以下且编码器也静止200ms后重新锁零。
+ */
+#define KNEXUS_BALL_STATIONARY_SPEED_MPS                   0.02f
+#define KNEXUS_BALL_STATIONARY_ENCODER_ACCEL_MPS2          0.12f
+#define KNEXUS_BALL_MOTION_UNLOCK_ACCEL_MPS2               0.25f
+#define KNEXUS_BALL_MOTION_UNLOCK_HOLD_MS                    30U
+#define KNEXUS_BALL_STATIONARY_IMU_ACCEL_MPS2              0.10f
+#define KNEXUS_BALL_STATIONARY_HOLD_MS                     200U
+/* 补偿略作超前放大，用来抵消滤波、丝杆和杆角闭环的实际滞后。 */
+#define KNEXUS_BALL_ACCEL_COMPENSATION_GAIN                1.15f
+
+/* 10 mm GCr15实心钢球，理想纯滚动系数=5/7；质量约4.09 g。 */
+#define KNEXUS_BALL_DIAMETER_M                         0.010f
+#define KNEXUS_BALL_DENSITY_KG_M3                    7810.0f
+#define KNEXUS_BALL_ROLLING_FACTOR              (5.0f / 7.0f)
+#define KNEXUS_BALL_GRAVITY_MPS2                       9.80665f
+/* 等效粘性阻力 a_drag=-k*v，首轮按要求置0，后续用视觉轨迹辨识。 */
+#define KNEXUS_BALL_DRAG_S_INV_DEFAULT                   0.0f
+
+/* 比机械极限 -12°/+7° 各预留约2°制动余量。 */
+#define KNEXUS_BALL_ROLL_TARGET_MIN_DEG                 -10.0f
+#define KNEXUS_BALL_ROLL_TARGET_MAX_DEG                   5.0f
+#define KNEXUS_BALL_ROLL_TARGET_SLEW_DPS                 35.0f
+#define KNEXUS_BALL_ROD_SOFT_LIMIT_ENABLE                   1U
+/* 动态目标比静止追零更需要带宽；仅循迹归中模式覆盖共享杆角默认值。 */
+#define KNEXUS_BALL_ROD_ANGLE_KP                         240.0f
+#define KNEXUS_BALL_ROD_ANGLE_KI                           2.0f
+/* 拆除摩擦滑块后适当减小速度阻尼，让杆角更快跟随动态目标。 */
+#define KNEXUS_BALL_ROD_ANGLE_KD                          14.0f
+#define KNEXUS_BALL_ROD_MAX_RPM                         2500.0f
+#define KNEXUS_BALL_ROD_RPM_SLEW_RPMPS                 40000.0f
+/* 静止锁已建立后恢复小量目标角速度前馈；满斜率时最多增加480rpm。 */
+#define KNEXUS_BALL_ROD_TARGET_RATE_FF_RPM_PER_DPS          8.0f
+#define KNEXUS_BALL_DJI_TARGET_SLEW_RPMPS              40000.0f
+
+/* 无视觉时的位置/速度仅用于观察，不参与控制；限制积分漂移以免污染曲线量程。 */
+#define KNEXUS_BALL_PREDICT_VELOCITY_LIMIT_MPS            2.0f
+#define KNEXUS_BALL_PREDICT_POSITION_LIMIT_M              1.0f
+#define KNEXUS_BALL_OCTO_BASE_ID                          970U
 
 /* ======================== 10. BMI088 温控和零偏学习 ======================== */
 

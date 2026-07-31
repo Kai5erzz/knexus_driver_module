@@ -25,6 +25,13 @@
 #define knx26_user_on_peer_message       knexus_mode_line_follow_on_peer_message
 #define knx26_user_debug_octo            knexus_mode_line_follow_debug_octo
 #define knx26_user_debug_control_octo    knexus_mode_line_follow_debug_control_octo
+#elif defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
+#define knx26_user_init                  knexus_line_follow_core_init
+#define knx26_user_update                knexus_line_follow_core_update
+#define knx26_user_on_intersection       knexus_line_follow_core_on_intersection
+#define knx26_user_on_peer_message       knexus_line_follow_core_on_peer_message
+#define knx26_user_debug_octo            knexus_line_follow_core_debug_octo
+#define knx26_user_debug_control_octo    knexus_line_follow_core_debug_control_octo
 #endif
 
 /* 这些变量是运行期副本，可由 OctoLink/GDB 修改。 */
@@ -32,7 +39,8 @@ float knx26_test_left_cmd_polarity = KNEXUS_MOTOR_LEFT_CMD_SIGN_DEFAULT;
 float knx26_test_right_cmd_polarity = KNEXUS_MOTOR_RIGHT_CMD_SIGN_DEFAULT;
 float knx26_test_left_feedback_polarity = KNEXUS_MOTOR_LEFT_FEEDBACK_SIGN_DEFAULT;
 float knx26_test_right_feedback_polarity = KNEXUS_MOTOR_RIGHT_FEEDBACK_SIGN_DEFAULT;
-#if defined(KNEXUS_MODE_LINE_FOLLOW)
+#if defined(KNEXUS_MODE_LINE_FOLLOW) || \
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
 float knx26_test_max_duty = KNEXUS_LINE_MAX_DUTY_DEFAULT;
 #elif defined(KNEXUS_MODE_INTERSECTION_SAMPLE)
 float knx26_test_max_duty = KNEXUS_SAMPLE_MAX_DUTY_DEFAULT;
@@ -58,7 +66,8 @@ float knx26_line_recovery_angular_radps = KNEXUS_LINE_RECOVERY_RADPS_DEFAULT;
 float knexus_h_stop_after_mark_m = KNEXUS_H_STOP_AFTER_MARK_M_DEFAULT;
 float knexus_h_ball_target_cm = KNEXUS_H_BALL_TARGET_CM_DEFAULT;
 
-#if defined(KNEXUS_MODE_LINE_FOLLOW)
+#if defined(KNEXUS_MODE_LINE_FOLLOW) || \
+    defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)
 
 #define KNX26_CAL_DELAY_MS          KNEXUS_LINE_CAL_DELAY_MS
 #define KNX26_CAL_SAMPLES           KNEXUS_LINE_CAL_SAMPLES
@@ -109,6 +118,9 @@ static float s_line_confidence;
 static float s_curve_metric;
 static float s_speed_scale;
 static float s_steering_command;
+static float s_curve_feedforward_activation;
+static float s_curve_feedforward;
+static float s_curve_direction;
 static float s_linear_accel_command;
 static float s_measured_linear_accel;
 static float s_last_measured_linear;
@@ -158,6 +170,26 @@ static float approach_f(float current, float target, float max_step)
     if (delta < -max_step) delta = -max_step;
     return current + delta;
 }
+
+static float smoothstep01(float value)
+{
+    if (value <= 0.0f) return 0.0f;
+    if (value >= 1.0f) return 1.0f;
+    return value * value * (3.0f - 2.0f * value);
+}
+
+#if KNEXUS_H_TASK_ENABLE
+static float h_curve_distance_window(float distance_m,
+                                     float start_m,
+                                     float end_m)
+{
+    float ramp_m = KNEXUS_H_CURVE_RAMP_M;
+    if (ramp_m < 0.01f) ramp_m = 0.01f;
+    float enter = smoothstep01((distance_m - start_m) / ramp_m);
+    float leave = smoothstep01((end_m - distance_m) / ramp_m);
+    return (enter < leave) ? enter : leave;
+}
+#endif
 
 static void apply_polarities(void)
 {
@@ -217,6 +249,9 @@ static void stop_chassis(knx26_line_state_t state,
     s_requested_speed = 0.0f;
     s_desired_linear = 0.0f;
     s_desired_angular = 0.0f;
+    s_curve_feedforward_activation = 0.0f;
+    s_curve_feedforward = 0.0f;
+    s_curve_direction = 0.0f;
     s_linear_accel_command = 0.0f;
 #if KNEXUS_H_TASK_ENABLE
     if (s_h_timer_running) {
@@ -561,6 +596,9 @@ static void start_line_follow(const knx26_context_t *context)
     s_curve_metric = 0.0f;
     s_speed_scale = 0.0f;
     s_steering_command = 0.0f;
+    s_curve_feedforward_activation = 0.0f;
+    s_curve_feedforward = 0.0f;
+    s_curve_direction = 0.0f;
     s_linear_accel_command = 0.0f;
     s_measured_linear_accel = 0.0f;
     s_last_measured_linear = context->chassis.drive.measured_linear_mps;
@@ -716,8 +754,13 @@ static void update_line_follow(const knx26_context_t *context,
         float blend = (abs_error - KNEXUS_LINE_STRAIGHT_DEADBAND_ERROR) /
                       (KNEXUS_LINE_STRAIGHT_ZONE_ERROR -
                        KNEXUS_LINE_STRAIGHT_DEADBAND_ERROR);
-        float gain = KNEXUS_LINE_STRAIGHT_MIN_GAIN +
-                     (1.0f - KNEXUS_LINE_STRAIGHT_MIN_GAIN) * blend;
+        /* The old formula started at MIN_GAIN immediately above the
+         * dead-band, creating a finite steering step at the boundary.  The
+         * extra blend makes the transition continuous while still reaching
+         * exactly full cornering authority at STRAIGHT_ZONE_ERROR. */
+        float gain = blend *
+                     (KNEXUS_LINE_STRAIGHT_MIN_GAIN +
+                      (1.0f - KNEXUS_LINE_STRAIGHT_MIN_GAIN) * blend);
         steering *= gain;
     }
 
@@ -743,8 +786,39 @@ static void update_line_follow(const knx26_context_t *context,
     s_curve_metric += curve_alpha *
                       (instant_curve_metric - s_curve_metric);
 
+    /*
+     * H-track feedforward is scheduled from odometry, not from the same
+     * oscillating grayscale signal that the feedback loop is correcting.
+     * Smooth 18 cm ramps tolerate start placement and encoder error without
+     * producing an angular step at either end of a curve.
+     */
+#if KNEXUS_H_TASK_ENABLE
+    float curve1 = h_curve_distance_window(
+        s_h_lap_distance_m,
+        KNEXUS_H_CURVE1_START_M, KNEXUS_H_CURVE1_END_M);
+    float curve2 = h_curve_distance_window(
+        s_h_lap_distance_m,
+        KNEXUS_H_CURVE2_START_M, KNEXUS_H_CURVE2_END_M);
+    s_curve_feedforward_activation =
+        (curve1 > curve2) ? curve1 : curve2;
+    s_curve_direction = KNEXUS_H_CURVE_STEERING_SIGN;
+#else
+    s_curve_feedforward_activation = 0.0f;
+    s_curve_direction = 0.0f;
+#endif
+    s_curve_feedforward = s_curve_direction *
+                          KNEXUS_LINE_CURVE_FEEDFORWARD_RADPS *
+                          s_curve_feedforward_activation;
+    steering += s_curve_feedforward;
+
+#if KNEXUS_H_TASK_ENABLE
+    s_speed_scale = 1.0f -
+                    (1.0f - KNEXUS_H_CURVE_SPEED_SCALE) *
+                    s_curve_feedforward_activation;
+#else
     s_speed_scale = 1.0f -
                     KNEXUS_LINE_CURVE_SLOWDOWN_GAIN * s_curve_metric;
+#endif
     if (s_speed_scale < KNEXUS_LINE_MIN_SPEED_SCALE) {
         s_speed_scale = KNEXUS_LINE_MIN_SPEED_SCALE;
     }
@@ -791,8 +865,28 @@ static void update_line_follow(const knx26_context_t *context,
     s_measured_linear_accel += KNEXUS_LINE_MEASURED_ACCEL_FILTER_ALPHA *
                                (measured_accel - s_measured_linear_accel);
 
-    s_angular_command += KNEXUS_LINE_ANGULAR_SMOOTH_ALPHA *
-                         (s_desired_angular - s_angular_command);
+    /* Keep command shaping fast; the PID derivative and stable curve
+     * feedforward above now provide damping without another delayed loop. */
+    float angular_alpha;
+    if (s_desired_angular * s_angular_command < 0.0f) {
+        angular_alpha = KNEXUS_LINE_ANGULAR_REVERSE_ALPHA;
+    } else if (fabsf(s_desired_angular) > fabsf(s_angular_command)) {
+        angular_alpha = KNEXUS_LINE_ANGULAR_ATTACK_ALPHA;
+    } else {
+        angular_alpha = KNEXUS_LINE_ANGULAR_RELEASE_ALPHA;
+    }
+    /*
+     * The eight-channel centroid changes in discrete sensor-width steps.
+     * A single transition can therefore move the desired yaw rate by
+     * 0.4--0.8 rad/s even though the car has not changed curvature. Bound
+     * only the command slope: full steady-state cornering authority remains.
+     */
+    float angular_target = s_angular_command +
+                           angular_alpha *
+                               (s_desired_angular - s_angular_command);
+    s_angular_command = approach_f(
+        s_angular_command, angular_target,
+        KNEXUS_LINE_ANGULAR_SLEW_RADPS2 * dt_s);
 
     if (knx_chassis_set_velocity(s_linear_command, s_angular_command) != KNX_OK) {
         s_stop_count++;
@@ -837,6 +931,9 @@ void knx26_user_init(void)
     s_curve_metric = 0.0f;
     s_speed_scale = 0.0f;
     s_steering_command = 0.0f;
+    s_curve_feedforward_activation = 0.0f;
+    s_curve_feedforward = 0.0f;
+    s_curve_direction = 0.0f;
     s_linear_accel_command = 0.0f;
     s_measured_linear_accel = 0.0f;
     s_last_measured_linear = 0.0f;
@@ -946,6 +1043,16 @@ void knx26_user_update(const struct knx26_context *raw_context)
         update_line_follow(context, knx26_line_speed_mps);
 #endif
     }
+}
+
+knx26_line_state_t knexus_line_follow_core_get_state(void)
+{
+    return s_state;
+}
+
+float knexus_line_follow_core_get_accel_command_mps2(void)
+{
+    return s_linear_accel_command;
 }
 
 #if KNEXUS_H_TASK_ENABLE
@@ -1098,6 +1205,20 @@ void knx26_user_debug_control_octo(Octolinker_Instance_t *octo,
     (void)Octolinker_SendF32(octo, 836U, s_steering_command);
     (void)Octolinker_SendF32(octo, 837U, s_linear_accel_command);
     (void)Octolinker_SendF32(octo, 838U, s_measured_linear_accel);
+    (void)Octolinker_SendF32(octo, 861U,
+                             KNEXUS_LINE_ERROR_FILTER_ALPHA);
+    (void)Octolinker_SendF32(octo, 862U,
+                             KNEXUS_LINE_ANGULAR_ATTACK_ALPHA);
+    (void)Octolinker_SendF32(octo, 863U,
+                             KNEXUS_LINE_ANGULAR_RELEASE_ALPHA);
+    (void)Octolinker_SendF32(octo, 864U,
+                             KNEXUS_LINE_ANGULAR_REVERSE_ALPHA);
+    (void)Octolinker_SendF32(octo, 869U,
+                             s_curve_feedforward_activation);
+    (void)Octolinker_SendF32(octo, 870U, s_curve_feedforward);
+    (void)Octolinker_SendF32(octo, 871U, s_curve_direction);
+    (void)Octolinker_SendF32(octo, 872U,
+                             KNEXUS_LINE_CURVE_FEEDFORWARD_RADPS);
 }
 
 #endif

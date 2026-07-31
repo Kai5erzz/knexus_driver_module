@@ -42,7 +42,9 @@
 #error "KNexus: each task phase must be smaller than its period"
 #endif
 
-#if defined(KNEXUS_MODE_LINE_FOLLOW) && KNEXUS_H_TASK_ENABLE && \
+#if (defined(KNEXUS_MODE_LINE_FOLLOW) || \
+     defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)) && \
+    KNEXUS_H_TASK_ENABLE && \
     (KNX26_H_BALL_PERIOD_MS == 0U)
 #error "KNexus: invalid H-problem ball control period"
 #endif

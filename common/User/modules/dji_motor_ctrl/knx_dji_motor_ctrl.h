@@ -8,6 +8,7 @@ typedef struct {
     bool enabled;
     float target_rpm;
     float target_used_rpm;
+    float target_slew_rpmps;
     float speed_rpm;
     float current;
     float angle_deg;
@@ -32,6 +33,12 @@ extern volatile int32_t dji_pid_output;
 knx_status_t knx_dji_motor_ctrl_init(void);
 void knx_dji_motor_ctrl_update(float dt_s);
 void knx_dji_motor_ctrl_set_target(float target_rpm);
+knx_status_t knx_dji_motor_ctrl_set_speed_pid(float kp, float ki, float kd,
+                                              float integral_limit,
+                                              float max_current_cmd);
+knx_status_t knx_dji_motor_ctrl_set_current_feedforward(
+    float current_cmd, float min_target_rpm);
+knx_status_t knx_dji_motor_ctrl_set_target_slew(float slew_rpmps);
 void knx_dji_motor_ctrl_stop(void);
 void knx_dji_motor_ctrl_enable(void);
 void knx_dji_motor_ctrl_snapshot(knx_dji_motor_state_t *out);

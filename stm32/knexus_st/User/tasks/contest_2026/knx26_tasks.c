@@ -105,7 +105,9 @@ __attribute__((noreturn)) static void control_task(void *argument)
         uint32_t started = osKernelGetTickCount();
         knx26_diag_control_heartbeat++;
         knx26_control_update((float)KNX26_CONTROL_PERIOD_MS * 0.001f);
-#if defined(KNEXUS_MODE_LINE_FOLLOW) && KNEXUS_H_TASK_ENABLE
+#if (defined(KNEXUS_MODE_LINE_FOLLOW) || \
+     defined(KNEXUS_MODE_LINE_FOLLOW_BALL_CENTER)) && \
+    KNEXUS_H_TASK_ENABLE
         knx26_h_ball_control_update();
 #endif
         finish_periodic(&wake, KNX26_CONTROL_PERIOD_MS, started,
