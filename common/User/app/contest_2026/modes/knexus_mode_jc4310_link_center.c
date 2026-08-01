@@ -27,7 +27,7 @@
  *   - 底盘BMI088纵向加速度生成目标杆角，DM-IMU-L1提供实际杆角；
  *   - KEY0启动补偿，KEY1立即停止；未启动、数据失效或故障时只发0 N*m；
  *   - 动态复核确认正力矩使roll增大，因此杆角PD输出到电机力矩的极性为+1；
- *   - JC编码器-38°端只禁负力矩，+39°端只禁正力矩，反向退出始终允许。
+ *   - JC编码器-46°端只禁负力矩，+39°端只禁正力矩，反向退出始终允许。
  */
 
 typedef enum {
@@ -103,6 +103,7 @@ static float s_initial_position_deg;
 static float s_position_delta_deg;
 static float s_initial_roll_deg;
 static float s_roll_deg;
+static float s_roll_sensor_deg;
 static float s_roll_delta_deg;
 static float s_roll_rate_dps;
 static uint32_t s_tilt_age_ms;
@@ -142,6 +143,7 @@ static jc_reverse_phase_t s_reverse_phase;
 static int8_t s_reverse_direction;
 static int8_t s_reverse_candidate_direction;
 static uint32_t s_reverse_phase_tick_ms;
+static uint32_t s_reverse_last_kick_ms;
 static uint32_t s_reverse_kick_count;
 static float s_reverse_applied_torque_nm;
 static uint8_t s_limit_post_settle_active;
@@ -152,7 +154,9 @@ static float s_startup_reference_roll_deg;
 static float s_static_torque_nm;
 static float s_limit_predicted_position_deg;
 static float s_limit_target_velocity_dps;
-/* +1表示从-38°端向正方向退出，-1表示从+39°端向负方向退出。 */
+static uint8_t s_roll_guard_active;
+static float s_roll_guard_torque_nm;
+/* +1表示从-46°端向正方向退出，-1表示从+39°端向负方向退出。 */
 static int8_t s_limit_recovery_direction;
 static uint32_t s_limit_recovery_count;
 
@@ -487,6 +491,7 @@ static void jc_polarity_reset_data(void)
     s_position_delta_deg = 0.0f;
     s_initial_roll_deg = 0.0f;
     s_roll_deg = 0.0f;
+    s_roll_sensor_deg = 0.0f;
     s_roll_delta_deg = 0.0f;
     s_roll_rate_dps = 0.0f;
     s_tilt_age_ms = 0xFFFFFFFFU;
@@ -523,6 +528,7 @@ static void jc_polarity_reset_data(void)
     s_reversal_latched_ms = 0U;
     s_reversal_enter_count = 0U;
     jc_reverse_reset();
+    s_reverse_last_kick_ms = 0U;
     s_reverse_kick_count = 0U;
     s_control_was_active = 0U;
     s_startup_active = 0U;
@@ -531,6 +537,8 @@ static void jc_polarity_reset_data(void)
     s_static_torque_nm = 0.0f;
     s_limit_predicted_position_deg = 0.0f;
     s_limit_target_velocity_dps = 0.0f;
+    s_roll_guard_active = 0U;
+    s_roll_guard_torque_nm = 0.0f;
     s_limit_recovery_direction = 0;
     s_limit_recovery_count = 0U;
 }
@@ -621,7 +629,9 @@ void knexus_mode_jc4310_link_center_update(
     } else {
         s_tilt_age_ms = (uint32_t)tilt_age_signed_ms;
     }
-    s_roll_deg = imu.roll;
+    s_roll_sensor_deg = imu.roll;
+    s_roll_deg = s_roll_sensor_deg -
+        KNEXUS_JC4310_ROD_ZERO_ROLL_DEG;
     s_roll_rate_dps = KNEXUS_DM_IMU_ROLL_GYRO_SIGN *
                       imu.gyro[0] * 57.2957795f;
     s_tilt_valid =
@@ -720,8 +730,10 @@ void knexus_mode_jc4310_link_center_update(
          * then blend toward the requested angle. */
         s_startup_active = 1U;
         s_startup_tick_ms = context->now_ms;
-        s_startup_reference_roll_deg = s_roll_deg;
-        s_jc_target_roll_deg = s_roll_deg;
+        s_startup_reference_roll_deg = jc_clampf(
+            s_roll_deg, KNEXUS_JC4310_TARGET_ROLL_MIN_DEG,
+            KNEXUS_JC4310_TARGET_ROLL_MAX_DEG);
+        s_jc_target_roll_deg = s_startup_reference_roll_deg;
         s_i_torque_nm = 0.0f;
         s_reversal_candidate_since_ms = 0U;
         s_reversal_latched_ms = 0U;
@@ -745,8 +757,10 @@ void knexus_mode_jc4310_link_center_update(
             s_i_torque_nm = 0.0f;
             s_startup_active = 1U;
             s_startup_tick_ms = context->now_ms;
-            s_startup_reference_roll_deg = s_roll_deg;
-            s_jc_target_roll_deg = s_roll_deg;
+            s_startup_reference_roll_deg = jc_clampf(
+                s_roll_deg, KNEXUS_JC4310_TARGET_ROLL_MIN_DEG,
+                KNEXUS_JC4310_TARGET_ROLL_MAX_DEG);
+            s_jc_target_roll_deg = s_startup_reference_roll_deg;
         }
     } else if (s_lower_limit_active != 0U) {
         if (s_limit_recovery_direction != -1) {
@@ -756,26 +770,42 @@ void knexus_mode_jc4310_link_center_update(
             s_i_torque_nm = 0.0f;
             s_startup_active = 1U;
             s_startup_tick_ms = context->now_ms;
-            s_startup_reference_roll_deg = s_roll_deg;
-            s_jc_target_roll_deg = s_roll_deg;
+            s_startup_reference_roll_deg = jc_clampf(
+                s_roll_deg, KNEXUS_JC4310_TARGET_ROLL_MIN_DEG,
+                KNEXUS_JC4310_TARGET_ROLL_MAX_DEG);
+            s_jc_target_roll_deg = s_startup_reference_roll_deg;
         }
     } else if (s_limit_recovery_direction > 0) {
         float target_position = KNEXUS_JC4310_MOTOR_MIN_POSITION_DEG +
                                 KNEXUS_JC4310_LIMIT_RETURN_MARGIN_DEG;
-        if (fabsf(s_position_deg - target_position) <=
-                KNEXUS_JC4310_LIMIT_RECOVERY_POSITION_TOL_DEG &&
-            fabsf(s_position_velocity_dps) <=
-                KNEXUS_JC4310_LIMIT_RECOVERY_EXIT_VEL_DPS) {
+        /* Recovery is one-way: once the encoder has crossed the safe return
+         * line it must not wait to land inside a narrow +/- tolerance band.
+         * A startup CAN sample can briefly report an old out-of-range angle;
+         * the following valid sample may already be well inside the range.
+         * The old fabsf() test then latched recovery forever because the
+         * target had been overshot.  Keep recovery only while the mechanism
+         * is still outside the return line, or is moving rapidly back toward
+         * the same hard limit. */
+        bool crossed_return_line = s_position_deg >= target_position;
+        bool moving_outward_fast = s_position_velocity_dps <
+            -KNEXUS_JC4310_LIMIT_RECOVERY_EXIT_VEL_DPS;
+        bool deep_inside_safe_range = s_position_deg >=
+            target_position + KNEXUS_JC4310_LIMIT_BRAKE_ZONE_DEG;
+        if (crossed_return_line &&
+            (!moving_outward_fast || deep_inside_safe_range)) {
             s_limit_recovery_direction = 0;
             limit_recovery_just_completed = true;
         }
     } else if (s_limit_recovery_direction < 0) {
         float target_position = KNEXUS_JC4310_MOTOR_MAX_POSITION_DEG -
                                 KNEXUS_JC4310_LIMIT_RETURN_MARGIN_DEG;
-        if (fabsf(s_position_deg - target_position) <=
-                KNEXUS_JC4310_LIMIT_RECOVERY_POSITION_TOL_DEG &&
-            fabsf(s_position_velocity_dps) <=
-                KNEXUS_JC4310_LIMIT_RECOVERY_EXIT_VEL_DPS) {
+        bool crossed_return_line = s_position_deg <= target_position;
+        bool moving_outward_fast = s_position_velocity_dps >
+            KNEXUS_JC4310_LIMIT_RECOVERY_EXIT_VEL_DPS;
+        bool deep_inside_safe_range = s_position_deg <=
+            target_position - KNEXUS_JC4310_LIMIT_BRAKE_ZONE_DEG;
+        if (crossed_return_line &&
+            (!moving_outward_fast || deep_inside_safe_range)) {
             s_limit_recovery_direction = 0;
             limit_recovery_just_completed = true;
         }
@@ -785,8 +815,10 @@ void knexus_mode_jc4310_link_center_update(
          * settled at its return point. */
         s_startup_active = 1U;
         s_startup_tick_ms = context->now_ms;
-        s_startup_reference_roll_deg = s_roll_deg;
-        s_jc_target_roll_deg = s_roll_deg;
+        s_startup_reference_roll_deg = jc_clampf(
+            s_roll_deg, KNEXUS_JC4310_TARGET_ROLL_MIN_DEG,
+            KNEXUS_JC4310_TARGET_ROLL_MAX_DEG);
+        s_jc_target_roll_deg = s_startup_reference_roll_deg;
         s_i_torque_nm = 0.0f;
         jc_reverse_reset();
     }
@@ -878,9 +910,11 @@ void knexus_mode_jc4310_link_center_update(
                  * loop bumpless until encoder position and speed settle. */
                 s_startup_active = 1U;
                 s_startup_tick_ms = context->now_ms;
-                s_startup_reference_roll_deg = s_roll_deg;
-                s_jc_target_roll_deg = s_roll_deg;
-                desired_roll_deg = s_roll_deg;
+                s_startup_reference_roll_deg = jc_clampf(
+                    s_roll_deg, KNEXUS_JC4310_TARGET_ROLL_MIN_DEG,
+                    KNEXUS_JC4310_TARGET_ROLL_MAX_DEG);
+                s_jc_target_roll_deg = s_startup_reference_roll_deg;
+                desired_roll_deg = s_startup_reference_roll_deg;
                 target_slew_dps =
                     KNEXUS_JC4310_STARTUP_TARGET_SLEW_DPS;
             } else if (s_startup_active != 0U) {
@@ -970,9 +1004,17 @@ void knexus_mode_jc4310_link_center_update(
                 : 0.0f;
             s_effective_kd_gain = 1.0f + near_blend *
                 (KNEXUS_JC4310_NEAR_KD_GAIN - 1.0f);
+            /* Derivative on measurement avoids a full torque impulse whenever
+             * the small ±2° target reverses.  A limited 10% target-rate term
+             * keeps useful dynamic following without recreating setpoint kick. */
+            float target_rate_ff_dps = jc_clampf(
+                KNEXUS_JC4310_TARGET_RATE_FF_GAIN *
+                    s_target_roll_rate_dps,
+                -KNEXUS_JC4310_TARGET_RATE_FF_LIMIT_DPS,
+                KNEXUS_JC4310_TARGET_RATE_FF_LIMIT_DPS);
             s_d_torque_nm = knexus_jc4310_angle_kd *
                 s_effective_kd_gain *
-                (s_target_roll_rate_dps - s_roll_rate_dps);
+                (target_rate_ff_dps - s_roll_rate_dps);
             /*
              * 目标快速反向时，当前角度误差会在几十毫秒后换号。旧保护始终把
              * 反向D限制为P的75%，导致大误差时也只剩约0.05 N*m，杆子无法
@@ -1108,7 +1150,11 @@ void knexus_mode_jc4310_link_center_update(
              * never a high-torque reversal kick. */
             jc_reverse_reset();
         } else if (s_reverse_phase == JC_REVERSE_IDLE) {
+            bool reverse_rearmed = s_reverse_last_kick_ms == 0U ||
+                (context->now_ms - s_reverse_last_kick_ms) >=
+                    KNEXUS_JC4310_REVERSE_REARM_MS;
             bool predicted_reverse_ready =
+                reverse_rearmed &&
                 s_reversal_lead_active != 0U &&
                 predicted_direction == reverse_trigger_direction &&
                 reverse_trigger_direction != 0;
@@ -1117,9 +1163,11 @@ void knexus_mode_jc4310_link_center_update(
                 s_reverse_phase = JC_REVERSE_KICK;
                 s_reverse_direction = reverse_trigger_direction;
                 s_reverse_phase_tick_ms = context->now_ms;
+                s_reverse_last_kick_ms = context->now_ms;
                 s_limit_post_settle_active = 0U;
                 s_reverse_kick_count++;
-            } else if (reverse_trigger_direction != 0) {
+            } else if (reverse_rearmed &&
+                       reverse_trigger_direction != 0) {
                 s_reverse_phase = JC_REVERSE_CONFIRM;
                 s_reverse_candidate_direction = reverse_trigger_direction;
                 s_reverse_phase_tick_ms = context->now_ms;
@@ -1136,6 +1184,7 @@ void knexus_mode_jc4310_link_center_update(
                 s_reverse_phase = JC_REVERSE_KICK;
                 s_reverse_direction = s_reverse_candidate_direction;
                 s_reverse_phase_tick_ms = context->now_ms;
+                s_reverse_last_kick_ms = context->now_ms;
                 s_limit_post_settle_active = 0U;
                 s_reverse_kick_count++;
             }
@@ -1346,6 +1395,62 @@ void knexus_mode_jc4310_link_center_update(
                 requested_torque_nm = jc_clampf(
                     requested_torque_nm, -max_control_torque,
                     max_control_torque);
+            }
+        }
+        /* Final actual-angle guard.  Target clamping alone cannot constrain
+         * inertia: the 2026-07-31T23:44 sample had a ±2° target but measured
+         * -7.57/+12.27°.  Predict 40ms ahead and, once the small-angle
+         * envelope is threatened, let an independent roll PD own torque. */
+        s_roll_guard_active = 0U;
+        s_roll_guard_torque_nm = 0.0f;
+        if (control_active && s_tilt_valid != 0U) {
+            float predicted_roll_deg = s_roll_deg +
+                KNEXUS_JC4310_ROLL_GUARD_LOOKAHEAD_S *
+                    s_roll_rate_dps;
+            int8_t guard_direction = 0;
+            if (s_roll_deg > KNEXUS_JC4310_ROLL_GUARD_MAX_DEG ||
+                predicted_roll_deg >
+                    KNEXUS_JC4310_ROLL_GUARD_MAX_DEG) {
+                guard_direction = -1;
+            } else if (s_roll_deg <
+                           KNEXUS_JC4310_ROLL_GUARD_MIN_DEG ||
+                       predicted_roll_deg <
+                           KNEXUS_JC4310_ROLL_GUARD_MIN_DEG) {
+                guard_direction = 1;
+            }
+            if (guard_direction != 0) {
+                float guard_target_deg =
+                    guard_direction < 0
+                        ? KNEXUS_JC4310_ROLL_GUARD_RETURN_MAX_DEG
+                        : KNEXUS_JC4310_ROLL_GUARD_RETURN_MIN_DEG;
+                s_roll_guard_torque_nm =
+                    KNEXUS_JC4310_ROLL_GUARD_KP_NM_PER_DEG *
+                        (guard_target_deg - s_roll_deg) -
+                    KNEXUS_JC4310_ROLL_GUARD_KD_NM_PER_DPS *
+                        s_roll_rate_dps;
+                s_roll_guard_torque_nm = jc_clampf(
+                    s_roll_guard_torque_nm,
+                    -fabsf(KNEXUS_JC4310_LIMIT_MAX_TORQUE_NM),
+                    fabsf(KNEXUS_JC4310_LIMIT_MAX_TORQUE_NM));
+                requested_torque_nm = s_roll_guard_torque_nm;
+                s_roll_guard_active = 1U;
+                s_limit_blocked = 1U;
+                s_i_torque_nm = 0.0f;
+                jc_reverse_reset();
+            }
+        }
+        /* The roll guard must never defeat the final mechanical one-way
+         * prohibition.  If both protections demand opposite directions,
+         * command zero instead of pushing either boundary farther outward. */
+        if (s_position_valid != 0U) {
+            if (s_position_deg <=
+                    KNEXUS_JC4310_MECHANICAL_MIN_POSITION_DEG &&
+                requested_torque_nm < 0.0f) {
+                requested_torque_nm = 0.0f;
+            } else if (s_position_deg >=
+                           KNEXUS_JC4310_MECHANICAL_MAX_POSITION_DEG &&
+                       requested_torque_nm > 0.0f) {
+                requested_torque_nm = 0.0f;
             }
         }
         /* 限位速度阻尼也必须服从电机峰值力矩；旧代码在这里可能叠加到
@@ -1650,6 +1755,17 @@ void knexus_jc4310_debug_compact_control_octo(
                             (uint8_t)s_reverse_phase);
     (void)Octolinker_SendI32(octo, id + 56U,
                              (int32_t)s_limit_recovery_direction);
+    (void)Octolinker_SendF32(octo, id + 71U, s_position_deg);
+    (void)Octolinker_SendF32(octo, id + 72U,
+                             s_position_velocity_dps);
+    (void)Octolinker_SendU8(octo, id + 73U,
+                            s_roll_guard_active);
+    (void)Octolinker_SendF32(octo, id + 74U,
+                             s_roll_guard_torque_nm);
+    (void)Octolinker_SendF32(octo, id + 75U,
+                             s_roll_sensor_deg);
+    (void)Octolinker_SendF32(octo, id + 76U,
+                             KNEXUS_JC4310_ROD_ZERO_ROLL_DEG);
 }
 
 #endif

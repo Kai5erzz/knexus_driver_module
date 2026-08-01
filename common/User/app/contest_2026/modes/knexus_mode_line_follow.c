@@ -1128,6 +1128,19 @@ void knexus_line_follow_core_force_stop(void)
     stop_chassis(KNX26_LINE_STOPPED, 0U, KNX26_STOP_KEY1);
 }
 
+void knexus_line_follow_core_start(const struct knx26_context *raw_context)
+{
+    const knx26_context_t *context =
+        (const knx26_context_t *)raw_context;
+    if (context == NULL || s_state == KNX26_LINE_RUNNING
+#if KNEXUS_H_TASK_ENABLE
+        || s_state == KNX26_LINE_START_CLEAR ||
+           s_state == KNX26_LINE_FINISH_APPROACH
+#endif
+    ) return;
+    start_line_follow(context);
+}
+
 void knexus_line_follow_core_set_longitudinal_limits(
     float accel_limit_mps2, float decel_limit_mps2,
     float jerk_limit_mps3)

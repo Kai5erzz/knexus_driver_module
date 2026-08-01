@@ -23,15 +23,15 @@
  * 六模式运行时菜单：
  *   1/6     仅上报模式，不驱动机构；
  *   2       运行现有循迹，JC4310持续0 N*m；
- *   3       底盘静止，钢球-5cm到+5cm并最终保持；
+ *   3       底盘静止，钢球+5cm后折返到-5cm并最终保持；
  *   4       A到B循迹，视觉回中叠加底盘运动补偿；
  *   5       整圈循迹，视觉回中叠加底盘运动补偿。
  */
 typedef enum {
     MODE3_STAGE_IDLE = 0,
-    MODE3_STAGE_TO_NEGATIVE,
     MODE3_STAGE_TO_POSITIVE,
-    MODE3_STAGE_HOLD_POSITIVE,
+    MODE3_STAGE_TO_NEGATIVE,
+    MODE3_STAGE_HOLD_NEGATIVE,
 } mode3_stage_t;
 
 typedef enum {
@@ -92,6 +92,7 @@ static uint8_t s_mode4_ball_guard_stop;
 static float s_mode4_speed_request_mps;
 static float s_mode6_target_cm;
 static uint8_t s_mode6_target_sampled;
+static uint8_t s_moving_start_pending;
 static visual_breakaway_state_t s_visual_breakaway_state;
 static uint32_t s_visual_breakaway_tick_ms;
 static int8_t s_visual_breakaway_direction;
@@ -190,11 +191,18 @@ static void update_auto_prelevel(
 {
 #if defined(KNX_PLATFORM_STM32)
     if (s_ball_prelevel_requested != 0U &&
-        s_ball_control_armed == 0U &&
-        s_vision_fresh != 0U &&
-        knexus_jc4310_is_ready() != 0U) {
-        s_ball_control_armed = 1U;
-        visual_controller_reset(comm, 0.0f);
+        s_ball_control_armed == 0U) {
+        /* 先只把摆杆本身拉回水平。旧流程一进入模式就把±10cm的小球
+         * 偏差直接交给外环，机构尚在端点时便要求最大杆角，随后在两个
+         * 编码器限位之间循环恢复。只有杆角、杆速和编码器位置都稳定后，
+         * 才无扰切换到视觉归中。 */
+        knexus_jc4310_external_target_set_ex(0.0f, true, false);
+        if (s_vision_fresh != 0U &&
+            knexus_jc4310_is_ready() != 0U &&
+            knexus_jc4310_is_settled() != 0U) {
+            s_ball_control_armed = 1U;
+            visual_controller_reset(comm, 0.0f);
+        }
     }
 #else
     (void)comm;
@@ -281,7 +289,8 @@ static void visual_controller_update(
                 KNEXUS_VISION_CENTER_BREAKAWAY_MAX_RATE_MPS;
         /* 行驶时底盘本身已经提供微振动，不再叠加静摩擦脉冲，避免在
          * +/-1 cm评分边界附近主动制造一次额外的杆角阶跃。 */
-        if (add_motion_compensation || !allow_breakaway) {
+        if (KNEXUS_VISION_CENTER_BREAKAWAY_ENABLE == 0U ||
+            add_motion_compensation || !allow_breakaway) {
             ball_stuck = false;
             s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
             s_visual_breakaway_tick_ms = 0U;
@@ -330,15 +339,15 @@ static void visual_controller_update(
             KNEXUS_VISION_CENTER_NEAR_ZONE_M;
         bool mode3_profile = s_active_mode == 3U &&
             s_mode3_running != 0U;
-        bool mode3_negative_approach = mode3_profile &&
-            s_mode3_stage == MODE3_STAGE_TO_NEGATIVE;
         bool mode3_positive_approach = mode3_profile &&
             s_mode3_stage == MODE3_STAGE_TO_POSITIVE;
-        bool mode3_positive_precision = mode3_profile &&
-            (s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE ||
-             (mode3_positive_approach &&
-              comm->offset >=
-                  KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM));
+        bool mode3_negative_approach = mode3_profile &&
+            s_mode3_stage == MODE3_STAGE_TO_NEGATIVE;
+        bool mode3_negative_precision = mode3_profile &&
+            (s_mode3_stage == MODE3_STAGE_HOLD_NEGATIVE ||
+             (mode3_negative_approach &&
+              comm->offset <=
+                  KNEXUS_MENU_MODE3_NEGATIVE_CAPTURE_START_CM));
         if (mode3_positive_approach) {
             s_visual_position_to_speed_gain = near_target
                 ? KNEXUS_MENU_MODE3_POSITIVE_NEAR_POSITION_TO_SPEED_S_INV
@@ -414,12 +423,15 @@ static void visual_controller_update(
         float target_roll = asinf(clampf_local(
             s_desired_ball_accel_mps2 / gravity_gain,
             -0.99f, 0.99f)) * 57.2957795f;
+        float min_visual_roll_deg = mode3_positive_approach
+            ? KNEXUS_MENU_MODE3_POSITIVE_MIN_ROLL_DEG
+            : KNEXUS_VISION_CENTER_MIN_ROLL_DEG;
         float max_visual_roll_deg = mode3_positive_approach
             ? KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG
             : KNEXUS_VISION_CENTER_MAX_ROLL_DEG;
         target_roll = clampf_local(
             target_roll,
-            -max_visual_roll_deg,
+            min_visual_roll_deg,
             max_visual_roll_deg);
         /*
          * The normal integral is intentionally weak and cannot quickly
@@ -439,7 +451,8 @@ static void visual_controller_update(
             s_mode3_offset_rate_cmps;
         int8_t mode3_error_direction = mode3_raw_error_m > 0.0f
             ? 1 : (mode3_raw_error_m < 0.0f ? -1 : 0);
-        if (!mode3_positive_precision) {
+        if (KNEXUS_MENU_MODE3_STICTION_ENABLE == 0U ||
+            !mode3_negative_precision) {
             s_mode3_stiction_since_ms = 0U;
             s_mode3_stiction_active = 0U;
             s_mode3_stiction_direction = 0;
@@ -522,10 +535,16 @@ static void visual_controller_update(
     }
 
 #if defined(KNX_PLATFORM_STM32)
-    knexus_jc4310_external_target_set_ex(
-        s_target_roll_deg,
-        enabled && s_vision_fresh != 0U,
-        enabled && add_motion_compensation);
+    if (!enabled && s_ball_prelevel_requested != 0U &&
+        s_ball_control_armed == 0U) {
+        /* 保持预调平命令，不能被本函数的disabled分支下一行又撤销。 */
+        knexus_jc4310_external_target_set_ex(0.0f, true, false);
+    } else {
+        knexus_jc4310_external_target_set_ex(
+            s_target_roll_deg,
+            enabled && s_vision_fresh != 0U,
+            enabled && add_motion_compensation);
+    }
 #else
     (void)add_motion_compensation;
 #endif
@@ -627,7 +646,6 @@ static void stop_all_actuators(void)
     s_mode4_running = 0U;
     s_mode5_running = 0U;
     s_mode6_running = 0U;
-    s_mode6_running = 0U;
     s_ball_control_armed = 0U;
     s_ball_prelevel_requested = 0U;
     s_mode3_stage = MODE3_STAGE_IDLE;
@@ -659,6 +677,7 @@ static void stop_all_actuators(void)
     s_target_roll_deg = 0.0f;
     s_mode6_target_cm = 0.0f;
     s_mode6_target_sampled = 0U;
+    s_moving_start_pending = 0U;
     s_mode3_predicted_offset_cm = 0.0f;
     s_mode3_offset_rate_cmps = 0.0f;
     s_mode3_last_offset_cm = 0.0f;
@@ -669,8 +688,6 @@ static void stop_all_actuators(void)
     s_mode3_stiction_direction = 0;
     s_mode4_ball_guard_stop = 0U;
     s_mode4_speed_request_mps = 0.0f;
-    s_mode6_target_cm = 0.0f;
-    s_mode6_target_sampled = 0U;
 #if defined(KNX_PLATFORM_STM32)
     knexus_jc4310_force_zero();
 #endif
@@ -695,9 +712,15 @@ static void enter_selected_mode(void)
                 ? KNEXUS_MENU_MODE4_LINE_SPEED_MPS
                 : KNEXUS_H_LINE_SPEED_MPS_DEFAULT;
             knexus_line_follow_core_set_longitudinal_limits(
-                KNEXUS_MENU_MOVING_ACCEL_LIMIT_MPS2,
-                KNEXUS_MENU_MOVING_DECEL_LIMIT_MPS2,
-                KNEXUS_MENU_MOVING_JERK_LIMIT_MPS3);
+                s_active_mode == 4U
+                    ? KNEXUS_MENU_MOVING_ACCEL_LIMIT_MPS2
+                    : KNEXUS_MENU_LAP_ACCEL_LIMIT_MPS2,
+                s_active_mode == 4U
+                    ? KNEXUS_MENU_MOVING_DECEL_LIMIT_MPS2
+                    : KNEXUS_MENU_LAP_DECEL_LIMIT_MPS2,
+                s_active_mode == 4U
+                    ? KNEXUS_MENU_MOVING_JERK_LIMIT_MPS3
+                    : KNEXUS_MENU_LAP_JERK_LIMIT_MPS3);
             /* Mode4 is the straight AB test.  Modes5/6 retain the existing
              * corner-aware line speed logic so ball control never interferes
              * with steering or forces a constant-speed corner. */
@@ -772,8 +795,10 @@ static void update_menu_oled(uint32_t now_ms,
         oled_line(3U, "JC4310 0 TORQUE");
     } else if (s_active_mode == 3U) {
         if (!s_mode3_running) {
-            if (s_ball_control_armed == 0U ||
-                fabsf(comm->offset) > KNEXUS_MENU_BALL_ERROR_LIMIT_CM) {
+            if (s_ball_control_armed == 0U) {
+                oled_line(2U, "LEVELING ROD");
+            } else if (fabsf(comm->offset) >
+                       KNEXUS_MENU_BALL_ERROR_LIMIT_CM) {
                 oled_line(2U, "AUTO CENTER 0");
             } else {
                 oled_line(2U, "READY K0 START");
@@ -783,7 +808,7 @@ static void update_menu_oled(uint32_t now_ms,
         } else if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE) {
             oled_line(2U, "GO +5CM");
         } else {
-            oled_line(2U, "HOLD +5CM");
+            oled_line(2U, "HOLD -5CM");
         }
         make_offset_line(line, comm->offset);
         oled_line(3U, line);
@@ -795,6 +820,15 @@ static void update_menu_oled(uint32_t now_ms,
         }
         make_offset_line(line, comm->offset);
         oled_line(3U, line);
+    } else if (s_active_mode == 4U || s_active_mode == 5U) {
+        if (s_ball_control_armed == 0U) {
+            oled_line(2U, "LEVELING ROD");
+        } else if (fabsf(comm->offset) >
+                   KNEXUS_MENU_BALL_ERROR_LIMIT_CM) {
+            oled_line(2U, "AUTO CENTER 0");
+        } else {
+            oled_line(2U, "READY K0 START");
+        }
     } else {
         oled_line(2U, "UPLINK ONLY");
         oled_line(3U, "NO ACTUATION");
@@ -830,7 +864,7 @@ static void update_mode3(const knx26_context_t *context,
             fabsf(comm->offset) <= KNEXUS_MENU_BALL_ERROR_LIMIT_CM &&
             knexus_jc4310_is_ready() != 0U) {
             s_mode3_running = 1U;
-            s_mode3_stage = MODE3_STAGE_TO_NEGATIVE;
+            s_mode3_stage = MODE3_STAGE_TO_POSITIVE;
             s_task_completed = 0U;
             s_task_timeout = 0U;
             s_task_start_ms = context->now_ms;
@@ -841,7 +875,7 @@ static void update_mode3(const knx26_context_t *context,
             s_mode3_last_offset_rx_count = comm->rx_count;
             s_mode3_last_offset_ms = comm->last_rx_ms;
             visual_controller_reset(
-                comm, KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM);
+                comm, KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM);
             knx_beep_beep(100U);
         } else {
             s_mode3_running = 0U;
@@ -882,25 +916,22 @@ static void update_mode3(const knx26_context_t *context,
         s_mode3_predicted_offset_cm = comm->offset +
             s_mode3_offset_rate_cmps *
                 KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_LOOKAHEAD_S;
+        bool positive_arrival = fabsf(comm->offset -
+            KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM) <=
+                KNEXUS_MENU_MODE3_REACH_TOLERANCE_CM;
         bool negative_arrival = fabsf(comm->offset -
             KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM) <=
                 KNEXUS_MENU_MODE3_REACH_TOLERANCE_CM;
-        bool negative_brake_due =
-            comm->offset <= KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM +
-                KNEXUS_MENU_MODE3_NEGATIVE_BRAKE_ARM_DISTANCE_CM &&
-            s_mode3_offset_rate_cmps < 0.0f &&
-            s_mode3_predicted_offset_cm <=
-                KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM;
-        if (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE &&
-            (negative_arrival || negative_brake_due)) {
-            s_mode3_stage = MODE3_STAGE_TO_POSITIVE;
+        /* 赛题要求必须先实际到达+5cm附近，再立即折返。这里不再使用
+         * “预测将到达”提前切换，避免实际只到3~4cm就开始回程。 */
+        if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE &&
+            positive_arrival) {
+            s_mode3_stage = MODE3_STAGE_TO_NEGATIVE;
             visual_controller_reset(
-                comm, KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM);
-        } else if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE &&
-                   fabsf(comm->offset -
-                         KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM) <=
-                       KNEXUS_MENU_MODE3_REACH_TOLERANCE_CM) {
-            s_mode3_stage = MODE3_STAGE_HOLD_POSITIVE;
+                comm, KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM);
+        } else if (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE &&
+                   negative_arrival) {
+            s_mode3_stage = MODE3_STAGE_HOLD_NEGATIVE;
             s_task_completed = 1U;
             knx_beep_beep(100U);
         }
@@ -911,11 +942,11 @@ static void update_mode3(const knx26_context_t *context,
     }
 
     float target_cm = 0.0f;
-    if (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE) {
-        target_cm = KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM;
-    } else if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE ||
-               s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE) {
+    if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE) {
         target_cm = KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM;
+    } else if (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE ||
+               s_mode3_stage == MODE3_STAGE_HOLD_NEGATIVE) {
+        target_cm = KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM;
     }
     float mode3_feedforward_accel_mps2 = 0.0f;
     if (s_mode3_stage == MODE3_STAGE_TO_POSITIVE) {
@@ -923,18 +954,23 @@ static void update_mode3(const knx26_context_t *context,
             comm->offset >= KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_START_CM
                 ? KNEXUS_MENU_MODE3_POSITIVE_CAPTURE_FF_MPS2
                 : KNEXUS_MENU_MODE3_POSITIVE_APPROACH_FF_MPS2;
-    } else if (s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE &&
-               comm->offset < KNEXUS_MENU_MODE3_POSITIVE_TARGET_CM -
-                   KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_ENABLE_ERROR_CM) {
+    } else if (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE) {
         mode3_feedforward_accel_mps2 =
-            KNEXUS_MENU_MODE3_POSITIVE_HOLD_FF_MPS2;
+            comm->offset <= KNEXUS_MENU_MODE3_NEGATIVE_CAPTURE_START_CM
+                ? KNEXUS_MENU_MODE3_NEGATIVE_CAPTURE_FF_MPS2
+                : KNEXUS_MENU_MODE3_NEGATIVE_APPROACH_FF_MPS2;
+    } else if (s_mode3_stage == MODE3_STAGE_HOLD_NEGATIVE &&
+               comm->offset > KNEXUS_MENU_MODE3_NEGATIVE_TARGET_CM +
+                   KNEXUS_MENU_MODE3_NEGATIVE_HOLD_FF_ENABLE_ERROR_CM) {
+        mode3_feedforward_accel_mps2 =
+            KNEXUS_MENU_MODE3_NEGATIVE_HOLD_FF_MPS2;
     }
     visual_controller_update(
         context, comm, target_cm,
         s_ball_control_armed != 0U, false,
-        s_mode3_stage != MODE3_STAGE_HOLD_POSITIVE,
+        false,
         mode3_feedforward_accel_mps2,
-        s_mode3_stage == MODE3_STAGE_HOLD_POSITIVE
+        s_mode3_stage == MODE3_STAGE_HOLD_NEGATIVE
             ? KNEXUS_MENU_MODE3_HOLD_DEADBAND_CM *
                 KNEXUS_VISION_CENTER_INPUT_SCALE
             : KNEXUS_VISION_CENTER_DEADBAND);
@@ -959,6 +995,7 @@ static void moving_task_finish(uint8_t mode, bool completed,
                                bool timeout)
 {
     knexus_line_follow_core_force_stop();
+    s_moving_start_pending = 0U;
     if (mode == 4U) s_mode4_running = 0U;
     if (mode == 5U) s_mode5_running = 0U;
     if (mode == 6U) s_mode6_running = 0U;
@@ -988,8 +1025,9 @@ static void update_moving_ball_task(
         s_ball_prelevel_requested = 0U;
 #if defined(KNX_PLATFORM_STM32)
         if (knexus_jc4310_is_ready() != 0U) {
-            s_ball_control_armed = 1U;
             knexus_jc4310_external_target_set_ex(0.0f, true, false);
+            s_ball_control_armed =
+                knexus_jc4310_is_settled() != 0U ? 1U : 0U;
         } else {
             s_ball_control_armed = 0U;
             knexus_jc4310_force_zero();
@@ -1000,7 +1038,13 @@ static void update_moving_ball_task(
     }
     bool reject_start = false;
 
-    if (knx_key_just_released(KNX_KEY_0)) {
+    bool start_key_released = knx_key_just_released(KNX_KEY_0);
+    if (start_key_released) {
+        /* 锁存一次启动请求：若归中尚未进入允许带，则继续归中，满足条件后
+         * 自动启动，不要求用户在小球过零的瞬间再次按键。 */
+        s_moving_start_pending = 1U;
+    }
+    if (s_moving_start_pending != 0U && *running == 0U) {
 #if defined(KNX_PLATFORM_STM32)
         bool common_ready = s_vision_fresh != 0U &&
             s_ball_control_armed != 0U &&
@@ -1023,6 +1067,7 @@ static void update_moving_ball_task(
                 visual_controller_reset(comm, s_mode6_target_cm);
             }
             *running = 1U;
+            s_moving_start_pending = 0U;
             s_task_completed = 0U;
             s_task_timeout = 0U;
             s_task_start_ms = 0U;
@@ -1038,10 +1083,11 @@ static void update_moving_ball_task(
             s_mode4_speed_request_mps = mode == 4U
                 ? KNEXUS_MENU_MODE4_LINE_SPEED_MPS
                 : KNEXUS_H_LINE_SPEED_MPS_DEFAULT;
+            knexus_line_follow_core_start(
+                (const struct knx26_context *)context);
+            knx_beep_beep(100U);
         } else {
-            reject_start = true;
-            *running = 0U;
-            knx_beep_beep(400U);
+            reject_start = start_key_released;
         }
 #else
         reject_start = true;
@@ -1119,6 +1165,7 @@ static void update_moving_ball_task(
 
     if (knx_key_just_pressed(KNX_KEY_1)) {
         *running = 0U;
+        s_moving_start_pending = 0U;
         s_ball_control_armed = 0U;
         s_ball_prelevel_requested = 0U;
     }
@@ -1148,6 +1195,8 @@ void knexus_mode_six_menu_init(void)
     s_mode3_running = 0U;
     s_mode4_running = 0U;
     s_mode5_running = 0U;
+    s_mode6_running = 0U;
+    s_moving_start_pending = 0U;
     s_ball_control_armed = 0U;
     s_ball_prelevel_requested = 0U;
     s_task_completed = 0U;
@@ -1267,12 +1316,18 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
     knx_pendulum_comm_state_t comm;
     knx_pendulum_comm_snapshot(&comm);
     const uint16_t id = KNEXUS_MENU_OCTO_BASE_ID;
-#if KNEXUS_MENU_MODE3_OCTO_COMPACT_ENABLE
-    if (s_active_mode == 3U) {
+#if KNEXUS_MENU_TASK_OCTO_COMPACT_ENABLE
+    if (s_active_mode >= 3U && s_active_mode <= 6U) {
         /* 10Hz compact diagnostics.  The 50Hz rod loop is emitted separately
          * by knexus_jc4310_debug_compact_control_octo(). */
+        uint8_t task_running = s_active_mode == 3U
+            ? s_mode3_running
+            : (s_active_mode == 4U
+                ? s_mode4_running
+                : (s_active_mode == 5U
+                    ? s_mode5_running : s_mode6_running));
         (void)Octolinker_SendU8(octo, id + 1U, s_active_mode);
-        (void)Octolinker_SendU8(octo, id + 2U, s_mode3_running);
+        (void)Octolinker_SendU8(octo, id + 2U, task_running);
         (void)Octolinker_SendU8(octo, id + 3U, s_vision_fresh);
         (void)Octolinker_SendF32(octo, id + 4U, comm.offset);
         (void)Octolinker_SendF32(octo, id + 9U, s_visual_error);
@@ -1282,8 +1337,29 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
                                  s_desired_ball_accel_mps2);
         (void)Octolinker_SendF32(octo, id + 12U,
                                  s_target_roll_deg);
+        (void)Octolinker_SendF32(octo, id + 14U,
+                                 s_visual_error_integral);
+        (void)Octolinker_SendF32(octo, id + 15U,
+                                 s_visual_i_accel_mps2);
         (void)Octolinker_SendU8(octo, id + 17U,
                                 (uint8_t)s_mode3_stage);
+        (void)Octolinker_SendF32(octo, id + 18U, s_ball_target_cm);
+        (void)Octolinker_SendU32(octo, id + 19U,
+                                 s_task_elapsed_ms);
+        (void)Octolinker_SendF32(octo, id + 20U,
+                                 s_task_distance_m);
+        (void)Octolinker_SendU8(octo, id + 22U,
+                                s_task_completed);
+        (void)Octolinker_SendU8(octo, id + 23U,
+                                s_task_timeout);
+        (void)Octolinker_SendU8(octo, id + 27U,
+                                s_ball_control_armed);
+        (void)Octolinker_SendU8(octo, id + 28U,
+                                s_ball_prelevel_requested);
+#if defined(KNX_PLATFORM_STM32)
+        (void)Octolinker_SendU8(octo, id + 29U,
+                                knexus_jc4310_is_settled());
+#endif
         (void)Octolinker_SendF32(octo, id + 33U,
                                  s_mode3_offset_rate_cmps);
         (void)Octolinker_SendF32(octo, id + 42U,
@@ -1296,6 +1372,12 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
             octo, id + 46U,
             s_mode3_stiction_since_ms != 0U
                 ? knx_millis() - s_mode3_stiction_since_ms : 0U);
+        (void)Octolinker_SendU8(octo, id + 47U,
+                                s_mode6_target_sampled);
+        (void)Octolinker_SendF32(octo, id + 48U,
+                                 s_mode6_target_cm);
+        (void)Octolinker_SendU8(octo, id + 49U,
+                                s_moving_start_pending);
         return;
     }
 #endif
@@ -1403,13 +1485,12 @@ void knexus_mode_six_menu_debug_octo(Octolinker_Instance_t *octo,
 void knexus_mode_six_menu_debug_control_octo(
     Octolinker_Instance_t *octo, uint16_t base_id)
 {
-    if (s_active_mode == 2U || s_active_mode == 4U ||
-        s_active_mode == 5U || s_active_mode == 6U) {
+    if (s_active_mode == 2U) {
         knexus_line_follow_core_debug_control_octo(octo, base_id);
     }
 #if defined(KNX_PLATFORM_STM32)
-#if KNEXUS_MENU_MODE3_OCTO_COMPACT_ENABLE
-    if (s_active_mode == 3U) {
+#if KNEXUS_MENU_TASK_OCTO_COMPACT_ENABLE
+    if (s_active_mode >= 3U && s_active_mode <= 6U) {
         knexus_jc4310_debug_compact_control_octo(octo);
         return;
     }

@@ -18,6 +18,7 @@ float knexus_line_follow_core_get_accel_command_mps2(void);
 float knexus_line_follow_core_get_distance_m(void);
 uint32_t knexus_line_follow_core_get_elapsed_ms(void);
 void knexus_line_follow_core_force_stop(void);
+void knexus_line_follow_core_start(const struct knx26_context *context);
 void knexus_line_follow_core_set_longitudinal_limits(
     float accel_limit_mps2, float decel_limit_mps2,
     float jerk_limit_mps3);
