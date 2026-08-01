@@ -126,6 +126,9 @@ static float s_target_roll_deg;
 static float s_target_roll_rate_dps;
 static float s_jc_target_roll_deg;
 static float s_angle_error_deg;
+static float s_rate_target_dps;
+static float s_rate_error_dps;
+static float s_rate_torque_limit_nm;
 static float s_p_torque_nm;
 static float s_i_torque_nm;
 static float s_d_torque_nm;
@@ -514,6 +517,9 @@ static void jc_polarity_reset_data(void)
     s_target_roll_rate_dps = 0.0f;
     s_jc_target_roll_deg = 0.0f;
     s_angle_error_deg = 0.0f;
+    s_rate_target_dps = 0.0f;
+    s_rate_error_dps = 0.0f;
+    s_rate_torque_limit_nm = 0.0f;
     s_p_torque_nm = 0.0f;
     s_i_torque_nm = 0.0f;
     s_d_torque_nm = 0.0f;
@@ -950,6 +956,113 @@ void knexus_mode_jc4310_link_center_update(
                     KNEXUS_JC4310_RATE_DEADBAND_DPS) {
                 s_angle_error_deg = 0.0f;
             }
+#if KNEXUS_JC4310_CASCADE_RATE_ENABLE
+            /*
+             * Explicit angle-rate cascade:
+             *   angle error -> requested roll rate -> rate PI -> torque.
+             *
+             * The old parallel PD was mathematically similar only while it
+             * remained linear.  Its D-opposition limiter and open-loop
+             * reversal kick removed braking exactly when the rod was fast,
+             * allowing a +/-2.45 deg command to become +11.74/-6.69 deg.
+             * This controller always treats measured angular velocity as the
+             * quantity to close first and gives braking more authority than
+             * acceleration.
+             */
+            float error_abs_deg = fabsf(s_angle_error_deg);
+            float near_rate_blend = jc_clampf(
+                error_abs_deg /
+                    KNEXUS_JC4310_ANGLE_RATE_NEAR_ZONE_DEG,
+                0.0f, 1.0f);
+            float angle_to_rate_gain =
+                KNEXUS_JC4310_ANGLE_TO_RATE_KP_DPS_PER_DEG *
+                (KNEXUS_JC4310_ANGLE_RATE_NEAR_GAIN +
+                 (1.0f - KNEXUS_JC4310_ANGLE_RATE_NEAR_GAIN) *
+                     near_rate_blend);
+            float target_rate_ff_dps = jc_clampf(
+                KNEXUS_JC4310_RATE_TARGET_FF_GAIN *
+                    s_target_roll_rate_dps,
+                -KNEXUS_JC4310_RATE_TARGET_FF_LIMIT_DPS,
+                KNEXUS_JC4310_RATE_TARGET_FF_LIMIT_DPS);
+            s_rate_target_dps = jc_clampf(
+                angle_to_rate_gain * s_angle_error_deg +
+                    target_rate_ff_dps,
+                -KNEXUS_JC4310_ANGLE_RATE_MAX_DPS,
+                KNEXUS_JC4310_ANGLE_RATE_MAX_DPS);
+            s_rate_error_dps = s_rate_target_dps - s_roll_rate_dps;
+            s_p_torque_nm = KNEXUS_JC4310_RATE_KP_NM_PER_DPS *
+                s_rate_error_dps;
+            s_d_torque_nm = 0.0f;
+            s_effective_kp_gain = angle_to_rate_gain /
+                KNEXUS_JC4310_ANGLE_TO_RATE_KP_DPS_PER_DEG;
+            s_effective_kd_gain = 1.0f;
+            s_d_opposition_ratio = 0.0f;
+            s_predicted_error_deg = s_angle_error_deg +
+                KNEXUS_JC4310_REVERSAL_LOOKAHEAD_S *
+                    (s_target_roll_rate_dps - s_roll_rate_dps);
+            s_reversal_candidate_since_ms = 0U;
+            s_reversal_latched_ms = 0U;
+            s_reversal_lead_active = 0U;
+
+            /* A small smooth static term gets the linkage moving; the rate
+             * integrator then learns the torque needed to hold the angle. */
+            s_static_torque_nm = 0.0f;
+            if (s_startup_active == 0U &&
+                s_limit_recovery_direction == 0 &&
+                fabsf(s_roll_rate_dps) <
+                    KNEXUS_JC4310_STATIC_MAX_ROLL_RATE_DPS &&
+                error_abs_deg > KNEXUS_JC4310_STATIC_ENTER_ERROR_DEG) {
+                float static_span =
+                    KNEXUS_JC4310_STATIC_FULL_ERROR_DEG -
+                    KNEXUS_JC4310_STATIC_ENTER_ERROR_DEG;
+                float static_blend = static_span > 0.01f
+                    ? jc_clampf((error_abs_deg -
+                            KNEXUS_JC4310_STATIC_ENTER_ERROR_DEG) /
+                            static_span,
+                        0.0f, 1.0f)
+                    : 1.0f;
+                s_static_torque_nm =
+                    (s_angle_error_deg > 0.0f ? 1.0f : -1.0f) *
+                    KNEXUS_JC4310_STATIC_TORQUE_NM * static_blend;
+            }
+
+            float torque_without_i_nm =
+                s_p_torque_nm + s_static_torque_nm;
+            bool braking = fabsf(s_roll_rate_dps) >=
+                    KNEXUS_JC4310_RATE_BRAKE_MIN_SPEED_DPS &&
+                torque_without_i_nm * s_roll_rate_dps < 0.0f;
+            s_rate_torque_limit_nm = braking
+                ? KNEXUS_JC4310_RATE_BRAKE_MAX_TORQUE_NM
+                : KNEXUS_JC4310_RATE_DRIVE_MAX_TORQUE_NM;
+
+            if (s_upper_limit_active != 0U ||
+                s_lower_limit_active != 0U ||
+                s_limit_recovery_direction != 0 ||
+                s_startup_active != 0U) {
+                s_i_torque_nm = 0.0f;
+            } else {
+                float i_delta_nm =
+                    KNEXUS_JC4310_RATE_KI_NM_PER_DEG *
+                    s_rate_error_dps * dt_s;
+                float unsaturated_nm = torque_without_i_nm +
+                    s_i_torque_nm;
+                bool inside_rate_i_window = fabsf(s_rate_error_dps) <=
+                    KNEXUS_JC4310_RATE_INTEGRAL_MAX_ERROR_DPS;
+                bool unwinding = unsaturated_nm * i_delta_nm < 0.0f;
+                if (inside_rate_i_window || unwinding) {
+                    s_i_torque_nm = jc_clampf(
+                        s_i_torque_nm + i_delta_nm,
+                        -KNEXUS_JC4310_RATE_I_LIMIT_NM,
+                        KNEXUS_JC4310_RATE_I_LIMIT_NM);
+                }
+            }
+            s_raw_torque_nm = KNEXUS_JC4310_ROLL_TORQUE_SIGN *
+                (torque_without_i_nm + s_i_torque_nm);
+            requested_torque_nm = jc_clampf(
+                s_raw_torque_nm,
+                -s_rate_torque_limit_nm,
+                s_rate_torque_limit_nm);
+#else
             float direction_kp_gain = s_angle_error_deg > 0.0f
                 ? KNEXUS_JC4310_DOWN_KP_GAIN : 1.0f;
             float error_abs_deg = fabsf(s_angle_error_deg);
@@ -1104,8 +1217,12 @@ void knexus_mode_jc4310_link_center_update(
             requested_torque_nm = jc_clampf(
                 s_raw_torque_nm, -fabsf(knexus_jc4310_max_torque_nm),
                 fabsf(knexus_jc4310_max_torque_nm));
+#endif
         } else {
             s_jc_target_roll_deg = 0.0f;
+            s_rate_target_dps = 0.0f;
+            s_rate_error_dps = 0.0f;
+            s_rate_torque_limit_nm = 0.0f;
             s_i_torque_nm = 0.0f;
             s_motion_target_filtered_deg = 0.0f;
             s_reversal_candidate_since_ms = 0U;
@@ -1144,10 +1261,12 @@ void knexus_mode_jc4310_link_center_update(
             reverse_trigger_direction = requested_direction;
         }
 
-        if (s_limit_recovery_direction != 0 ||
+        if (KNEXUS_JC4310_REVERSE_KICK_ENABLE == 0U ||
+            s_limit_recovery_direction != 0 ||
             s_startup_active != 0U || limit_recovery_just_started) {
-            /* A limit recovery is a velocity-controlled safety manoeuvre,
-             * never a high-torque reversal kick. */
+            /* The cascaded rate loop performs closed-loop reversal itself.
+             * Limit recovery is also velocity controlled; neither case may
+             * be bypassed by an open-loop torque kick. */
             jc_reverse_reset();
         } else if (s_reverse_phase == JC_REVERSE_IDLE) {
             bool reverse_rearmed = s_reverse_last_kick_ms == 0U ||
@@ -1720,6 +1839,12 @@ static void jc_motion_comp_debug(Octolinker_Instance_t *octo)
                             s_external_motion_comp_enabled);
     (void)Octolinker_SendU32(octo, id + 70U,
                              s_tilt_future_timestamp_clamp_count);
+    (void)Octolinker_SendF32(octo, id + 77U,
+                             s_rate_target_dps);
+    (void)Octolinker_SendF32(octo, id + 78U,
+                             s_rate_error_dps);
+    (void)Octolinker_SendF32(octo, id + 79U,
+                             s_rate_torque_limit_nm);
 }
 
 void knexus_mode_jc4310_link_center_debug_octo(
@@ -1741,8 +1866,14 @@ void knexus_jc4310_debug_compact_control_octo(
 {
     if (octo == NULL) return;
     const uint16_t id = KNEXUS_JC4310_COMP_OCTO_BASE_ID;
+    knx_ball_motion_comp_state_t comp;
+    knx_ball_motion_comp_snapshot(&comp);
 
     /* Keep existing IDs so old OctoLink workspaces/CSV analysis still work. */
+    (void)Octolinker_SendF32(octo, id + 5U,
+                             comp.chassis_accel_mps2);
+    (void)Octolinker_SendF32(octo, id + 6U,
+                             comp.feedforward_roll_deg);
     (void)Octolinker_SendF32(octo, id + 7U, s_target_roll_deg);
     (void)Octolinker_SendF32(octo, id + 9U, s_roll_deg);
     (void)Octolinker_SendF32(octo, id + 10U, s_roll_rate_dps);
@@ -1766,6 +1897,14 @@ void knexus_jc4310_debug_compact_control_octo(
                              s_roll_sensor_deg);
     (void)Octolinker_SendF32(octo, id + 76U,
                              KNEXUS_JC4310_ROD_ZERO_ROLL_DEG);
+    (void)Octolinker_SendF32(octo, id + 77U,
+                             s_rate_target_dps);
+    (void)Octolinker_SendF32(octo, id + 78U,
+                             s_rate_error_dps);
+    (void)Octolinker_SendF32(octo, id + 79U,
+                             s_rate_torque_limit_nm);
+    (void)Octolinker_SendU8(octo, id + 69U,
+                            s_external_motion_comp_enabled);
 }
 
 #endif

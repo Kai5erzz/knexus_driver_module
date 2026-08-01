@@ -508,7 +508,7 @@
 
 /* 底盘静止且杆角速度接近0时对三个加速度轴同时取均值；100点对应约1秒。 */
 #define KNEXUS_BALL_BIAS_SAMPLES                         100U
-#define KNEXUS_BALL_ACCEL_LPF_HZ                         3.0f
+#define KNEXUS_BALL_ACCEL_LPF_HZ                         8.0f
 #define KNEXUS_BALL_CHASSIS_IMU_AUTO_MAP_ENABLE            0U
 #define KNEXUS_BALL_CHASSIS_IMU_MAP_MIN_ACCEL_MPS2       0.20f
 #define KNEXUS_BALL_CHASSIS_IMU_MAP_SAMPLES                80U
@@ -516,7 +516,7 @@
 /* 编码器有效时BMI088占80%；手推测试中编码器无效，自动使用100%BMI088。 */
 #define KNEXUS_BALL_CHASSIS_IMU_BLEND_WEIGHT              0.80f
 /* 巡线时以已经限加速度/限加加速度的速度规划为主，传感器只校正模型误差。 */
-#define KNEXUS_BALL_COMMAND_ACCEL_WEIGHT                   0.85f
+#define KNEXUS_BALL_COMMAND_ACCEL_WEIGHT                   0.95f
 #define KNEXUS_BALL_COMMAND_MOTION_ACCEL_MPS2              0.03f
 /*
  * 静止锁使用迟滞：BMI088纵向加速度连续30ms超过0.25m/s²立即解锁；
@@ -528,8 +528,13 @@
 #define KNEXUS_BALL_MOTION_UNLOCK_HOLD_MS                    30U
 #define KNEXUS_BALL_STATIONARY_IMU_ACCEL_MPS2              0.10f
 #define KNEXUS_BALL_STATIONARY_HOLD_MS                     200U
-/* 补偿略作超前放大，用来抵消滤波、丝杆和杆角闭环的实际滞后。 */
+/* 补偿略作超前放大，用来抵消滤波和杆角闭环的实际滞后。运行时基准增益
+ * 仍为1.15；前进起步略降，制动方向提高。模式4/5均为正向行驶，负加速度
+ * 对应制动。更高的制动增益配合8Hz IMU滤波，覆盖底盘失能后的真实滑行减速。 */
 #define KNEXUS_BALL_ACCEL_COMPENSATION_GAIN                1.15f
+#define KNEXUS_BALL_ACCEL_DRIVE_GAIN_SCALE                  0.90f
+#define KNEXUS_BALL_ACCEL_BRAKE_GAIN_SCALE                  1.30f
+#define KNEXUS_BALL_ACCEL_BRAKE_THRESHOLD_MPS2              0.03f
 
 /* 10 mm GCr15实心钢球，理想纯滚动系数=5/7；质量约4.09 g。 */
 #define KNEXUS_BALL_DIAMETER_M                         0.010f
@@ -579,6 +584,30 @@
 #define KNEXUS_JC4310_DOWN_KP_GAIN                         1.35f /* 正roll=连杆下沉 */
 #define KNEXUS_JC4310_ANGLE_KI_DEFAULT                     0.004f
 #define KNEXUS_JC4310_ANGLE_KD_DEFAULT                     0.0095f
+/*
+ * JC4310 杆角串级控制（2026-08-01）：
+ *   杆角误差 -> 目标角速度 -> 角速度PI -> 力矩。
+ * 旧的“杆角PID直接出力矩”在目标仅约 +/-2.45deg 时仍实测冲到
+ * +11.74/-6.69deg、角速度达到 +115/-72dps，并反复触发编码器限位。
+ * 串级结构显式限制允许的杆角速度，并允许制动力矩大于驱动力矩，
+ * 使电机先停住杆子，再精确跟随小角度目标。
+ */
+#define KNEXUS_JC4310_CASCADE_RATE_ENABLE                    1U
+#define KNEXUS_JC4310_ANGLE_TO_RATE_KP_DPS_PER_DEG          7.00f
+#define KNEXUS_JC4310_ANGLE_RATE_MAX_DPS                   24.00f
+#define KNEXUS_JC4310_ANGLE_RATE_NEAR_ZONE_DEG              0.80f
+#define KNEXUS_JC4310_ANGLE_RATE_NEAR_GAIN                  0.72f
+#define KNEXUS_JC4310_RATE_TARGET_FF_GAIN                    0.10f
+#define KNEXUS_JC4310_RATE_TARGET_FF_LIMIT_DPS              6.00f
+#define KNEXUS_JC4310_RATE_KP_NM_PER_DPS                    0.014f
+#define KNEXUS_JC4310_RATE_KI_NM_PER_DEG                    0.025f
+#define KNEXUS_JC4310_RATE_I_LIMIT_NM                       0.085f
+#define KNEXUS_JC4310_RATE_INTEGRAL_MAX_ERROR_DPS          18.00f
+#define KNEXUS_JC4310_RATE_DRIVE_MAX_TORQUE_NM              0.22f
+#define KNEXUS_JC4310_RATE_BRAKE_MAX_TORQUE_NM              0.42f
+#define KNEXUS_JC4310_RATE_BRAKE_MIN_SPEED_DPS              3.00f
+/* 串级速度内环本身负责快速换向；禁止旧的30ms开环踹力矩越过速度环。 */
+#define KNEXUS_JC4310_REVERSE_KICK_ENABLE                    0U
 /* D项主要阻尼实际杆速，只保留少量受限目标角速度前馈，避免±2°目标换向时
  * 因240deg/s设定值阶跃直接把力矩打满。 */
 #define KNEXUS_JC4310_TARGET_RATE_FF_GAIN                   0.10f
@@ -618,7 +647,7 @@
 #define KNEXUS_JC4310_REVERSE_SETTLE_SLEW_NMPS              70.0f
 #define KNEXUS_JC4310_REVERSE_REARM_MS                        160U
 #define KNEXUS_JC4310_ANGLE_I_LIMIT_NM_DEFAULT             0.080f
-#define KNEXUS_JC4310_MAX_TORQUE_NM_DEFAULT                0.30f
+#define KNEXUS_JC4310_MAX_TORQUE_NM_DEFAULT                0.50f
 #define KNEXUS_JC4310_TORQUE_SLEW_NMPS_DEFAULT            90.00f
 #define KNEXUS_JC4310_ANGLE_DEADBAND_DEG                   0.12f
 #define KNEXUS_JC4310_RATE_DEADBAND_DPS                    0.80f
@@ -636,20 +665,20 @@
 #define KNEXUS_JC4310_INTEGRAL_MAX_ERROR_DEG                3.00f
 #define KNEXUS_JC4310_INTEGRAL_MAX_TARGET_RATE_DPS         10.00f
 #define KNEXUS_JC4310_INTEGRAL_MAX_ROLL_RATE_DPS           15.00f
-#define KNEXUS_JC4310_ACCEL_LPF_HZ                           5.00f
+#define KNEXUS_JC4310_ACCEL_LPF_HZ                           8.00f
 #define KNEXUS_JC4310_TARGET_LPF_HZ                         10.00f
 #define KNEXUS_JC4310_TARGET_ROLL_SLEW_DPS                 120.00f
 
-/* 实际杆角最终保护：所有角度均相对于主动扶正零位。预测/实测越过-5°/+5°
- * 时独立PD分别拉向-4.6°/+4.6°。该保护位于视觉、内环、换向和编码器恢复之后，最大可使用0.50N·m
+/* 实际杆角最终保护：所有角度均相对于主动扶正零位。预测/实测越过-3°/+3°
+ * 时独立PD分别拉向-2.4°/+2.4°。该保护位于视觉、内环、换向和编码器恢复之后，最大可使用0.50N·m
  * 制动，但最后仍服从机械编码器端点的单向禁止规则。 */
-#define KNEXUS_JC4310_ROLL_GUARD_MIN_DEG                  -5.00f
-#define KNEXUS_JC4310_ROLL_GUARD_MAX_DEG                   5.00f
-#define KNEXUS_JC4310_ROLL_GUARD_RETURN_MIN_DEG           -4.60f
-#define KNEXUS_JC4310_ROLL_GUARD_RETURN_MAX_DEG            4.60f
-#define KNEXUS_JC4310_ROLL_GUARD_LOOKAHEAD_S                0.040f
-#define KNEXUS_JC4310_ROLL_GUARD_KP_NM_PER_DEG             0.120f
-#define KNEXUS_JC4310_ROLL_GUARD_KD_NM_PER_DPS             0.0060f
+#define KNEXUS_JC4310_ROLL_GUARD_MIN_DEG                  -3.00f
+#define KNEXUS_JC4310_ROLL_GUARD_MAX_DEG                   3.00f
+#define KNEXUS_JC4310_ROLL_GUARD_RETURN_MIN_DEG           -2.40f
+#define KNEXUS_JC4310_ROLL_GUARD_RETURN_MAX_DEG            2.40f
+#define KNEXUS_JC4310_ROLL_GUARD_LOOKAHEAD_S                0.060f
+#define KNEXUS_JC4310_ROLL_GUARD_KP_NM_PER_DEG             0.160f
+#define KNEXUS_JC4310_ROLL_GUARD_KD_NM_PER_DPS             0.0120f
 
 /* 已标定主动编码器限位：越过-46°/+39°后位置PD主动拉回边界内2°。
  * 这里同时作为最终单向禁止边界，任何控制器都不得继续向外施力。 */
@@ -681,8 +710,8 @@
 #define KNEXUS_JC4310_POSITION_VELOCITY_LPF_ALPHA            0.35f
 /* 以主动扶正机械零位为0°的相对杆角目标；与JC编码器角度不是同一坐标。
  * 视觉归中和运动补偿叠加后仍必须落在-5°～+5°。 */
-#define KNEXUS_JC4310_TARGET_ROLL_MIN_DEG                 -5.00f
-#define KNEXUS_JC4310_TARGET_ROLL_MAX_DEG                  5.00f
+#define KNEXUS_JC4310_TARGET_ROLL_MIN_DEG                 -2.00f
+#define KNEXUS_JC4310_TARGET_ROLL_MAX_DEG                  2.20f
 #define KNEXUS_JC4310_LINK_OCTO_BASE_ID                    1040U
 #define KNEXUS_JC4310_COMP_OCTO_BASE_ID                    1200U
 
@@ -720,6 +749,15 @@
 #define KNEXUS_MENU_MODE3_NEGATIVE_CAPTURE_FF_MPS2           0.020f
 #define KNEXUS_MENU_MODE3_NEGATIVE_HOLD_FF_ENABLE_ERROR_CM   0.20f
 #define KNEXUS_MENU_MODE3_NEGATIVE_HOLD_FF_MPS2              0.020f
+/* 问3折返末端专用积分：大行程速度不变，只在距-5cm目标3.5cm内更快建立
+ * 消除静摩擦所需的倾角。2026-08-01采样在5.07s时仅差0.085cm进入±0.8cm
+ * 判定带，但积分加速度只有0.082/0.14m/s²；提高Ki并减少瞬时速度噪声导致的
+ * 积分衰减，可直接削掉末端约2s慢爬，不增加前往+5cm阶段的冲击。 */
+#define KNEXUS_MENU_MODE3_PRECISION_KI_MPS3                 8.00f
+#define KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_ZONE_M         0.035f
+#define KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_RATE_MAX_MPS   0.050f
+#define KNEXUS_MENU_MODE3_PRECISION_I_ACCEL_LIMIT_MPS2      0.16f
+#define KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_DECAY          0.90f
 /* 备用的静摩擦脉冲已关闭。当前版本只用目标附近积分消除稳态误差；如果以后
  * 机构静摩擦明显增大，可临时置1重新启用下列最小杆角参数。 */
 #define KNEXUS_MENU_MODE3_STICTION_ENABLE                     0U
@@ -750,8 +788,8 @@
 #define KNEXUS_MENU_MODE3_POSITIVE_VELOCITY_KP_S_INV        5.50f
 #define KNEXUS_MENU_MODE3_POSITIVE_MAX_SPEED_MPS            0.065f
 #define KNEXUS_MENU_MODE3_POSITIVE_MAX_ACCEL_MPS2           0.30f
-#define KNEXUS_MENU_MODE3_POSITIVE_MIN_ROLL_DEG             -5.00f
-#define KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG              5.00f
+#define KNEXUS_MENU_MODE3_POSITIVE_MIN_ROLL_DEG             -1.60f
+#define KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG              1.60f
 /* B点理论里程1.50m；多走2cm确保车体测试基准点已经真正“通过B”。 */
 #define KNEXUS_MENU_MODE4_AB_DISTANCE_M                     1.52f
 #define KNEXUS_MENU_MODE4_TIME_LIMIT_MS                    8000U
@@ -826,12 +864,38 @@
 #define KNEXUS_VISION_CENTER_ROLLING_GAIN        (5.0f / 7.0f)
 #define KNEXUS_VISION_CENTER_GRAVITY_MPS2                   9.80665f
 #define KNEXUS_VISION_CENTER_GRAVITY_FEEDFORWARD_GAIN       1.00f
-#define KNEXUS_VISION_CENTER_MIN_ROLL_DEG                   -5.00f
-#define KNEXUS_VISION_CENTER_MAX_ROLL_DEG                    5.00f
+#define KNEXUS_VISION_CENTER_MIN_ROLL_DEG                   -1.60f
+#define KNEXUS_VISION_CENTER_MAX_ROLL_DEG                    2.00f
 #define KNEXUS_VISION_CENTER_TARGET_SLEW_DPS               120.00f
 #define KNEXUS_VISION_CENTER_TIMEOUT_MS                       150U
 #define KNEXUS_VISION_CENTER_INVALID_LOW_CM                -12.60f
 #define KNEXUS_VISION_CENTER_INVALID_HIGH_CM                12.60f
+
+/*
+ * 模式4/5/6行驶中的视觉归中专用参数。
+ *
+ * 行驶起步和制动时，底盘运动补偿负责抵消已知的纵向惯性；视觉环只负责修正
+ * 剩余位置误差。不能继续使用静止模式的高刚度参数，否则几毫米的瞬时反向位移
+ * 就会把视觉杆角打满，并与运动补偿同向叠加，把球甩到另一端。
+ *
+ * 启动后的前450ms将视觉输出由0线性渐入，运动补偿从第一拍起保持有效。
+ * 这样既保留制动补偿，也避免相机差分速度在发车瞬间制造一次大杆角阶跃。
+ */
+#define KNEXUS_MENU_MOVING_VISUAL_BLEND_MS                    450U
+#define KNEXUS_MENU_MOVING_POSITION_TO_SPEED_S_INV          0.75f
+#define KNEXUS_MENU_MOVING_NEAR_POSITION_TO_SPEED_S_INV     1.10f
+#define KNEXUS_MENU_MOVING_VELOCITY_KP_S_INV                3.00f
+#define KNEXUS_MENU_MOVING_NEAR_VELOCITY_KP_S_INV           3.80f
+#define KNEXUS_MENU_MOVING_VISUAL_MAX_SPEED_MPS             0.035f
+#define KNEXUS_MENU_MOVING_VISUAL_MAX_ACCEL_MPS2            0.14f
+#define KNEXUS_MENU_MOVING_VISUAL_D_LPF_HZ                  2.50f
+#define KNEXUS_MENU_MOVING_VISUAL_MIN_ROLL_DEG             -1.15f
+#define KNEXUS_MENU_MOVING_VISUAL_MAX_ROLL_DEG              1.15f
+#define KNEXUS_MENU_MOVING_VISUAL_KI_MPS3                   3.00f
+#define KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_ZONE_M          0.020f
+#define KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_RATE_MAX_MPS    0.025f
+#define KNEXUS_MENU_MOVING_VISUAL_I_ACCEL_LIMIT_MPS2       0.10f
+#define KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_DECAY            0.85f
 
 /* ======================== 9.6 上位机偏移量丝杆归中 ======================== */
 

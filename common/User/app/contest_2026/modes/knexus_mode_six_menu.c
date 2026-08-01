@@ -76,6 +76,7 @@ static float s_visual_position_to_speed_gain;
 static float s_visual_velocity_kp_gain;
 static float s_visual_deadband_m;
 static float s_visual_task_feedforward_accel_mps2;
+static float s_moving_visual_blend;
 static float s_desired_ball_accel_mps2;
 static float s_gravity_feedforward_roll_deg;
 static float s_target_roll_deg;
@@ -173,6 +174,7 @@ static void visual_controller_reset(
         KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
     s_visual_deadband_m = KNEXUS_VISION_CENTER_DEADBAND;
     s_visual_task_feedforward_accel_mps2 = 0.0f;
+    s_moving_visual_blend = 1.0f;
     s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
     s_visual_breakaway_tick_ms = 0U;
     s_visual_breakaway_direction = 0;
@@ -219,12 +221,43 @@ static void visual_controller_update(
     float deadband_m)
 {
     const float dt_s = (float)KNEXUS_APP_PERIOD_MS * 0.001f;
+    const bool moving_profile = add_motion_compensation &&
+        s_active_mode >= 4U && s_active_mode <= 6U;
     s_ball_target_cm = target_cm;
     s_visual_deadband_m = deadband_m > 0.0f
         ? deadband_m : KNEXUS_VISION_CENTER_DEADBAND;
     s_visual_task_feedforward_accel_mps2 = enabled
         ? task_feedforward_accel_mps2 : 0.0f;
     if (enabled && s_vision_fresh != 0U) {
+        bool mode3_precision_integral = s_active_mode == 3U &&
+            s_mode3_running != 0U &&
+            (s_mode3_stage == MODE3_STAGE_TO_NEGATIVE ||
+             s_mode3_stage == MODE3_STAGE_HOLD_NEGATIVE);
+        float visual_integral_ki_mps3 = mode3_precision_integral
+            ? KNEXUS_MENU_MODE3_PRECISION_KI_MPS3
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_KI_MPS3
+                : KNEXUS_VISION_CENTER_KI_MPS3);
+        float visual_integral_zone_m = mode3_precision_integral
+            ? KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_ZONE_M
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_ZONE_M
+                : KNEXUS_VISION_CENTER_INTEGRAL_ZONE_M);
+        float visual_integral_rate_max_mps = mode3_precision_integral
+            ? KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_RATE_MAX_MPS
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_RATE_MAX_MPS
+                : KNEXUS_VISION_CENTER_INTEGRAL_RATE_MAX_MPS);
+        float visual_i_accel_limit_mps2 = mode3_precision_integral
+            ? KNEXUS_MENU_MODE3_PRECISION_I_ACCEL_LIMIT_MPS2
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_I_ACCEL_LIMIT_MPS2
+                : KNEXUS_VISION_CENTER_I_ACCEL_LIMIT_MPS2);
+        float visual_integral_decay = mode3_precision_integral
+            ? KNEXUS_MENU_MODE3_PRECISION_INTEGRAL_DECAY
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_INTEGRAL_DECAY
+                : KNEXUS_VISION_CENTER_INTEGRAL_DECAY);
         if (comm->rx_count != s_last_visual_rx_count) {
             float raw_error = KNEXUS_VISION_CENTER_INPUT_SIGN *
                 KNEXUS_VISION_CENTER_INPUT_SCALE *
@@ -241,8 +274,10 @@ static void visual_controller_update(
             visual_dt_s = clampf_local(visual_dt_s, 0.002f, 0.100f);
             float raw_rate =
                 (raw_error - s_visual_error_previous) / visual_dt_s;
-            float tau_s = 1.0f /
-                (6.28318530718f * KNEXUS_VISION_CENTER_D_LPF_HZ);
+            float d_lpf_hz = moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_D_LPF_HZ
+                : KNEXUS_VISION_CENTER_D_LPF_HZ;
+            float tau_s = 1.0f / (6.28318530718f * d_lpf_hz);
             float alpha = visual_dt_s / (tau_s + visual_dt_s);
             s_visual_error_rate +=
                 alpha * (raw_rate - s_visual_error_rate);
@@ -254,31 +289,31 @@ static void visual_controller_update(
             }
             if (s_visual_error != 0.0f &&
                 fabsf(s_visual_error) <=
-                    KNEXUS_VISION_CENTER_INTEGRAL_ZONE_M &&
+                    visual_integral_zone_m &&
                 fabsf(s_visual_error_rate) <=
-                    KNEXUS_VISION_CENTER_INTEGRAL_RATE_MAX_MPS) {
+                    visual_integral_rate_max_mps) {
                 s_visual_error_integral +=
                     s_visual_error * visual_dt_s;
                 float integral_limit =
-                    KNEXUS_VISION_CENTER_KI_MPS3 > 0.0001f
-                        ? KNEXUS_VISION_CENTER_I_ACCEL_LIMIT_MPS2 /
-                            KNEXUS_VISION_CENTER_KI_MPS3
+                    visual_integral_ki_mps3 > 0.0001f
+                        ? visual_i_accel_limit_mps2 /
+                            visual_integral_ki_mps3
                         : 0.0f;
                 s_visual_error_integral = clampf_local(
                     s_visual_error_integral,
                     -integral_limit, integral_limit);
             } else {
                 s_visual_error_integral *=
-                    KNEXUS_VISION_CENTER_INTEGRAL_DECAY;
+                    visual_integral_decay;
             }
             s_visual_error_previous = raw_error;
             s_last_visual_rx_count = comm->rx_count;
             s_last_visual_ms = comm->last_rx_ms;
         }
         s_visual_i_accel_mps2 = clampf_local(
-            KNEXUS_VISION_CENTER_KI_MPS3 * s_visual_error_integral,
-            -KNEXUS_VISION_CENTER_I_ACCEL_LIMIT_MPS2,
-            KNEXUS_VISION_CENTER_I_ACCEL_LIMIT_MPS2);
+            visual_integral_ki_mps3 * s_visual_error_integral,
+            -visual_i_accel_limit_mps2,
+            visual_i_accel_limit_mps2);
         float error_abs_m = fabsf(s_visual_error);
         int8_t error_direction = s_visual_error > 0.0f
             ? 1 : (s_visual_error < 0.0f ? -1 : 0);
@@ -360,6 +395,13 @@ static void visual_controller_update(
                 : KNEXUS_MENU_MODE3_POSITION_TO_SPEED_S_INV;
             s_visual_velocity_kp_gain =
                 KNEXUS_MENU_MODE3_VELOCITY_KP_S_INV;
+        } else if (moving_profile) {
+            s_visual_position_to_speed_gain = near_target
+                ? KNEXUS_MENU_MOVING_NEAR_POSITION_TO_SPEED_S_INV
+                : KNEXUS_MENU_MOVING_POSITION_TO_SPEED_S_INV;
+            s_visual_velocity_kp_gain = near_target
+                ? KNEXUS_MENU_MOVING_NEAR_VELOCITY_KP_S_INV
+                : KNEXUS_MENU_MOVING_VELOCITY_KP_S_INV;
         } else {
             s_visual_position_to_speed_gain = near_target
                 ? KNEXUS_VISION_CENTER_NEAR_POSITION_TO_SPEED_S_INV
@@ -374,14 +416,18 @@ static void visual_controller_update(
                 ? KNEXUS_MENU_MODE3_NEGATIVE_MAX_SPEED_MPS
                 : (mode3_profile
                 ? KNEXUS_MENU_MODE3_MAX_SPEED_MPS
-                : KNEXUS_VISION_CENTER_MAX_SPEED_MPS));
+                : (moving_profile
+                    ? KNEXUS_MENU_MOVING_VISUAL_MAX_SPEED_MPS
+                    : KNEXUS_VISION_CENTER_MAX_SPEED_MPS)));
         float max_ball_accel_mps2 = mode3_positive_approach
             ? KNEXUS_MENU_MODE3_POSITIVE_MAX_ACCEL_MPS2
             : (mode3_negative_approach
                 ? KNEXUS_MENU_MODE3_NEGATIVE_MAX_ACCEL_MPS2
                 : (mode3_profile
                 ? KNEXUS_MENU_MODE3_MAX_ACCEL_MPS2
-                : KNEXUS_VISION_CENTER_MAX_ACCEL_MPS2));
+                : (moving_profile
+                    ? KNEXUS_MENU_MOVING_VISUAL_MAX_ACCEL_MPS2
+                    : KNEXUS_VISION_CENTER_MAX_ACCEL_MPS2)));
         s_visual_target_velocity_mps = clampf_local(
             -s_visual_position_to_speed_gain *
                 s_visual_error,
@@ -425,14 +471,30 @@ static void visual_controller_update(
             -0.99f, 0.99f)) * 57.2957795f;
         float min_visual_roll_deg = mode3_positive_approach
             ? KNEXUS_MENU_MODE3_POSITIVE_MIN_ROLL_DEG
-            : KNEXUS_VISION_CENTER_MIN_ROLL_DEG;
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_MIN_ROLL_DEG
+                : KNEXUS_VISION_CENTER_MIN_ROLL_DEG);
         float max_visual_roll_deg = mode3_positive_approach
             ? KNEXUS_MENU_MODE3_POSITIVE_MAX_ROLL_DEG
-            : KNEXUS_VISION_CENTER_MAX_ROLL_DEG;
+            : (moving_profile
+                ? KNEXUS_MENU_MOVING_VISUAL_MAX_ROLL_DEG
+                : KNEXUS_VISION_CENTER_MAX_ROLL_DEG);
         target_roll = clampf_local(
             target_roll,
             min_visual_roll_deg,
             max_visual_roll_deg);
+        /* 发车瞬间只让运动补偿工作，视觉修正随后平滑接管。静止预归中和
+         * 停车后的保持不做衰减，避免影响KEY0发车条件及制动后的最终归中。 */
+        s_moving_visual_blend = 1.0f;
+        if (moving_profile && s_task_start_ms != 0U &&
+            (s_mode4_running != 0U || s_mode5_running != 0U ||
+             s_mode6_running != 0U)) {
+            s_moving_visual_blend = clampf_local(
+                (float)(context->now_ms - s_task_start_ms) /
+                    (float)KNEXUS_MENU_MOVING_VISUAL_BLEND_MS,
+                0.0f, 1.0f);
+            target_roll *= s_moving_visual_blend;
+        }
         /*
          * The normal integral is intentionally weak and cannot quickly
          * overcome linkage/ball static friction.  Detect a non-trivial
@@ -524,6 +586,7 @@ static void visual_controller_update(
         s_visual_velocity_kp_gain =
             KNEXUS_VISION_CENTER_VELOCITY_KP_S_INV;
         s_visual_task_feedforward_accel_mps2 = 0.0f;
+        s_moving_visual_blend = 1.0f;
         s_visual_breakaway_state = VISUAL_BREAKAWAY_WAIT;
         s_visual_breakaway_tick_ms = 0U;
         s_visual_breakaway_direction = 0;
@@ -1065,6 +1128,10 @@ static void update_moving_ball_task(
                     KNEXUS_MENU_MODE6_TARGET_ABS_MAX_CM);
                 s_mode6_target_sampled = 1U;
                 visual_controller_reset(comm, s_mode6_target_cm);
+            } else {
+                /* 模式4/5发车前清掉自动归中阶段残留的误差率和积分，避免
+                 * 第一帧把旧状态当作正在运动的球速。 */
+                visual_controller_reset(comm, 0.0f);
             }
             *running = 1U;
             s_moving_start_pending = 0U;
@@ -1177,11 +1244,25 @@ static void update_moving_ball_task(
         }
 #endif
     } else {
+        /* Keep acceleration feed-forward armed for the whole mode-4/5
+         * session, not only while the line state says RUNNING:
+         *
+         * 1. Before KEY0 it is already initialized at zero acceleration, so
+         *    launch does not introduce a controller handover step.
+         * 2. moving_task_finish() disables the chassis immediately, but the
+         *    vehicle still has a real braking transient.  BMI088 must remain
+         *    connected until stationary locking naturally returns the
+         *    feed-forward to zero; otherwise the ball escapes during braking.
+         *
+         * KEY1/fault/vision loss clears s_ball_control_armed and therefore
+         * still removes all actuation immediately. */
+        bool keep_motion_compensation = *running != 0U ||
+            (!mode6 && s_ball_control_armed != 0U);
         visual_controller_update(
             context, comm,
             mode6 ? s_mode6_target_cm : 0.0f,
             s_ball_control_armed != 0U,
-            *running != 0U,
+            keep_motion_compensation,
             *running == 0U,
             0.0f,
             KNEXUS_VISION_CENTER_DEADBAND);

@@ -270,8 +270,20 @@ void knx_ball_motion_comp_update(const float chassis_accel_mps2[3],
     if (s_state.compensation_active) {
         float denominator = knexus_ball_roll_gravity_sign *
                             KNEXUS_BALL_GRAVITY_MPS2;
+        /* Contest tasks travel forward only.  Positive longitudinal
+         * acceleration is launch; negative acceleration is braking.  The
+         * 2026-08-01 mode-5 capture showed launch compensation already
+         * present, while compensation was removed exactly when force_stop()
+         * started the real braking transient.  Use a calmer launch gain and
+         * stronger braking gain; the menu keeps this module armed through
+         * the post-stop IMU transient. */
+        float direction_scale =
+            s_state.chassis_accel_mps2 <
+                    -KNEXUS_BALL_ACCEL_BRAKE_THRESHOLD_MPS2
+                ? KNEXUS_BALL_ACCEL_BRAKE_GAIN_SCALE
+                : KNEXUS_BALL_ACCEL_DRIVE_GAIN_SCALE;
         float sine_target =
-            -knexus_ball_accel_compensation_gain *
+            -knexus_ball_accel_compensation_gain * direction_scale *
             s_state.chassis_accel_mps2 / denominator;
         sine_target = clampf(sine_target, -0.95f, 0.95f);
         target_roll_deg = asinf(sine_target) * RAD_TO_DEG;
